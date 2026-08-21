@@ -1,87 +1,252 @@
-# Data Masking API
+# Data Masking
 
-Backend FastAPI cho pipeline mask dữ liệu nhạy cảm bằng local LLM trước khi
-gửi ra Public LLM, sau đó de-mask response về giá trị thật.
+Ứng dụng FastAPI giúp che dữ liệu nhạy cảm bằng local LLM trước khi gửi nội
+dung tới Public LLM. Câu trả lời từ Public LLM được khôi phục placeholder về
+giá trị ban đầu trước khi hiển thị cho người dùng.
+
+Ứng dụng có giao diện web, chế độ sáng/tối và hỗ trợ chat trực tiếp với API
+OpenAI-compatible, Anthropic hoặc Google Gemini.
+
+## Luồng xử lý
+
+```text
+Văn bản gốc
+    ↓
+Local LLM phát hiện entity
+    ↓
+Thay dữ liệu nhạy cảm bằng placeholder
+    ↓
+Gửi nội dung đã che tới Public LLM
+    ↓
+Khôi phục placeholder trong câu trả lời
+    ↓
+Hiển thị kết quả cho người dùng
+```
+
+Ví dụ:
+
+```text
+Lê Trọng Phúc, số điện thoại 0913885457
+↓
+[TEN_NGUOI_1], số điện thoại [SO_DIEN_THOAI_1]
+```
+
+## Tính năng
+
+- Phát hiện tên người, công ty, số điện thoại, email, địa chỉ, số tiền, số tài
+  khoản, CCCD và các dữ liệu định danh khác.
+- Đối chiếu entity với văn bản gốc, kể cả khi local LLM làm mất dấu tiếng Việt
+  hoặc thay khoảng trắng bằng dấu gạch dưới.
+- Che và khôi phục dữ liệu theo `session_id`.
+- Chat trực tiếp với OpenAI-compatible, Anthropic và Google Gemini.
+- Che toàn bộ lịch sử trò chuyện trước khi gửi tới Public LLM.
+- Tự thử lại tối đa 3 lần khi Gemini gặp lỗi tạm thời `429`, `500`, `502`,
+  `503` hoặc `504`.
+- Giao diện responsive, hỗ trợ sáng/tối và ghi nhớ theme trên trình duyệt.
+- Swagger UI để thử API trực tiếp.
+
+## Yêu cầu
+
+- Python 3.10 trở lên.
+- Local LLM có API tương thích OpenAI Chat Completions.
+- Local LLM mặc định của dự án:
+  `http://192.168.210.212:8000/v1/chat/completions`.
+- API key của Public LLM nếu sử dụng chức năng chat.
 
 ## Cài đặt
 
+### Windows PowerShell
+
+```powershell
+cd C:\Users\admin\Downloads\masking-app\masking-app
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Nếu máy không có lệnh `python` nhưng đã cài `uv`:
+
+```powershell
+uv venv .venv --python 3.12
+uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+Copy-Item .env.example .env
+```
+
+### Linux hoặc macOS
+
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Sửa `.env`, đặt đúng `LOCAL_LLM_URL` (mặc định đã trỏ tới VM 111:
-`http://192.168.210.212:8000/v1/chat/completions`).
+Mở `.env` và kiểm tra `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL` cùng timeout phù hợp
+với môi trường của bạn.
 
-## Chạy
+## Chạy ứng dụng
 
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+### Windows PowerShell
+
+```powershell
+cd C:\Users\admin\Downloads\masking-app\masking-app
+.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-Server chạy tại `http://localhost:8080`. Xem docs tự động (Swagger UI) tại
-`http://localhost:8080/docs`.
+### Linux hoặc macOS
 
-## Các endpoint
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8080
+```
+
+Sau khi server khởi động:
+
+- Giao diện web: <http://127.0.0.1:8080/>
+- Swagger UI: <http://127.0.0.1:8080/docs>
+- Kiểm tra trạng thái: <http://127.0.0.1:8080/health>
+
+Giữ terminal mở trong lúc sử dụng. Nhấn `Ctrl+C` để dừng server.
+
+## Chat với Public LLM
+
+Mở tab **Chat với Public LLM** trên giao diện, sau đó nhập API URL, model và
+API key. Key chỉ tồn tại trong ô nhập trên trang và được gửi tới backend cục bộ
+trong từng request; ứng dụng không ghi key vào file hoặc `localStorage`.
+
+| Loại API | API URL mẫu | Model |
+| --- | --- | --- |
+| OpenAI-compatible | `https://api.openai.com/v1/chat/completions` | Nhập model được nhà cung cấp hỗ trợ |
+| Anthropic | `https://api.anthropic.com/v1/messages` | Nhập model được tài khoản hỗ trợ |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/models` | `gemini-3.6-flash` |
+
+Với các dịch vụ tương thích OpenAI như OpenRouter, Groq hoặc Together, thay API
+URL và model bằng thông tin do dịch vụ đó cung cấp.
+
+## API endpoints
+
+### `GET /health`
+
+Kiểm tra trạng thái FastAPI.
+
+```json
+{"status": "ok"}
+```
 
 ### `POST /mask`
-Detect entity nhạy cảm + mask text. Trả về `session_id` (dùng để unmask sau)
-và `masked_text` (gửi đi Public LLM).
+
+Phát hiện và che entity, sau đó trả về `session_id` dùng cho `/unmask`.
 
 ```bash
-curl -X POST http://localhost:8080/mask \
+curl -X POST http://127.0.0.1:8080/mask \
   -H "Content-Type: application/json" \
-  -d '{"text": "Công ty ABC Trading vừa ký hợp đồng trị giá 12,5 tỷ đồng, SĐT 0901234567."}'
+  -d '{"text":"Lê Trọng Phúc, số điện thoại 0913885457"}'
 ```
 
-Response:
+Response mẫu:
+
 ```json
 {
   "session_id": "a1b2c3d4-...",
-  "masked_text": "[TEN_CONG_TY_1] vừa ký hợp đồng trị giá [SO_TIEN_1], SĐT [SO_DIEN_THOAI_1].",
-  "entities": [...],
-  "entity_count": 3
+  "masked_text": "[TEN_NGUOI_1], số điện thoại [SO_DIEN_THOAI_1]",
+  "entities": [
+    {"text": "Lê Trọng Phúc", "type": "TEN_NGUOI"},
+    {"text": "0913885457", "type": "SO_DIEN_THOAI"}
+  ],
+  "entity_count": 2
 }
 ```
 
 ### `POST /unmask`
-Thay placeholder trong response của Public LLM về giá trị thật, dùng
-`session_id` đã lấy từ `/mask`.
+
+Khôi phục placeholder bằng mapping của `session_id`.
 
 ```bash
-curl -X POST http://localhost:8080/unmask \
+curl -X POST http://127.0.0.1:8080/unmask \
   -H "Content-Type: application/json" \
-  -d '{"session_id": "a1b2c3d4-...", "text": "Đã ghi nhận [TEN_CONG_TY_1]..."}'
+  -d '{"session_id":"a1b2c3d4-...","text":"Đã ghi nhận [TEN_NGUOI_1]."}'
+```
+
+### `POST /chat`
+
+Thực hiện pipeline mask → Public LLM → unmask. Các giá trị `provider` được hỗ
+trợ là `openai_compatible`, `anthropic` và `gemini`.
+
+```json
+{
+  "text": "Soạn email cho Công ty ABC",
+  "api_url": "https://generativelanguage.googleapis.com/v1beta/models",
+  "api_key": "API_KEY_CUA_BAN",
+  "model": "gemini-3.6-flash",
+  "provider": "gemini",
+  "history": []
+}
 ```
 
 ### `POST /process`
-Pipeline đầy đủ 1 lần gọi: mask → gọi Public LLM → unmask. **Cần cấu hình
-Public LLM trước** (xem bên dưới), nếu chưa cấu hình sẽ trả lỗi 501.
 
-## Cấu hình Public LLM
+Pipeline mask → Public LLM → unmask sử dụng `PUBLIC_LLM_URL`,
+`PUBLIC_LLM_API_KEY` và `PUBLIC_LLM_MODEL` trong `.env`. Nhánh này sử dụng định
+dạng OpenAI-compatible. Nếu chưa cấu hình, endpoint trả về `501`.
 
-File `app/public_llm.py` để dạng khung sẵn với ví dụ code cho OpenAI và
-Anthropic (đang comment). Khi bạn chọn nhà cung cấp:
+## Cấu hình `.env`
 
-1. Mở `app/public_llm.py`, bỏ comment đoạn tương ứng (OpenAI hoặc Anthropic)
-2. Điền `PUBLIC_LLM_URL`, `PUBLIC_LLM_API_KEY`, `PUBLIC_LLM_MODEL` vào `.env`
-3. Nếu dùng nhà cung cấp khác (Gemini, Azure OpenAI...), viết thêm nhánh
-   tương tự trong `call_public_llm()`
+```dotenv
+LOCAL_LLM_URL=http://192.168.210.212:8000/v1/chat/completions
+LOCAL_LLM_MODEL=Qwen/Qwen2.5-3B-Instruct
 
-Cho đến lúc đó, vẫn dùng riêng `/mask` và `/unmask` để tự ghép với bất kỳ
-Public LLM nào từ phía client/frontend của bạn.
+PUBLIC_LLM_URL=
+PUBLIC_LLM_API_KEY=
+PUBLIC_LLM_MODEL=
 
-## Lưu ý production
+REQUEST_TIMEOUT=180
+SESSION_TTL_SECONDS=3600
+```
 
-- **Session store hiện tại là in-memory** (`_SESSIONS` dict trong
-  `app/masking.py`) — mất khi restart server, và không share được giữa
-  nhiều worker process. Nếu deploy với nhiều worker hoặc cần persistent,
-  đổi sang Redis.
-- **CORS đang mở `*`** trong `app/main.py` — giới hạn lại origin cụ thể
-  trước khi đưa ra ngoài môi trường nội bộ.
-- System prompt detect entity đã được tinh chỉnh qua nhiều lần test với
-  văn bản hợp đồng tiếng Việt thực tế (xem `SYSTEM_PROMPT` trong
-  `app/masking.py`) — có `repetition_penalty: 1.15` để tránh model bị lặp
-  vô hạn với văn bản có tên/entity lặp lại nhiều lần.
+Không commit file `.env`. Repository đã có `.gitignore` để loại trừ secrets,
+môi trường Python, cache và log runtime.
+
+## Xử lý lỗi thường gặp
+
+### Không kết nối được API
+
+- Kiểm tra Uvicorn còn chạy hay không.
+- Mở <http://127.0.0.1:8080/health> và xác nhận response `{"status":"ok"}`.
+- Tải lại trang bằng `Ctrl+Shift+R`.
+
+### Không gọi được local LLM
+
+- Kiểm tra máy `192.168.210.212` có thể truy cập từ máy chạy ứng dụng.
+- Kiểm tra port `8000`, URL và tên model trong `.env`.
+
+### Gemini trả lỗi `503 high demand`
+
+Ứng dụng sẽ tự thử lại tối đa 3 lần. Nếu vẫn lỗi, chờ vài phút rồi gửi lại hoặc
+đổi sang model nhẹ hơn như `gemini-3.5-flash-lite`.
+
+### Public LLM trả lỗi `401` hoặc `403`
+
+Kiểm tra API key, model, quyền truy cập và API URL của nhà cung cấp.
+
+## Lưu ý khi triển khai production
+
+- Session mapping hiện được lưu trong RAM và mất khi restart. Nhiều worker cũng
+  không dùng chung mapping; nên chuyển sang Redis nếu triển khai thực tế.
+- CORS đang mở `*`; cần giới hạn origin được phép truy cập.
+- Endpoint `/chat` nhận API URL từ người dùng. Nếu public ứng dụng ra Internet,
+  cần whitelist domain nhà cung cấp để tránh SSRF.
+- Chỉ triển khai qua HTTPS để bảo vệ API key trên đường truyền.
+- Không ghi request body, API key hoặc dữ liệu đã khôi phục vào log.
+- Giới hạn kích thước văn bản, rate limit và xác thực người dùng trước khi đưa
+  ứng dụng ra ngoài mạng nội bộ.
+
+## Cấu trúc dự án
+
+```text
+app/
+├── __init__.py
+├── config.py       # Đọc cấu hình môi trường
+├── main.py         # FastAPI endpoints
+├── masking.py      # Detect, mask, unmask và session mapping
+├── public_llm.py   # OpenAI-compatible, Anthropic và Gemini clients
+└── web.html        # Giao diện web
+```
