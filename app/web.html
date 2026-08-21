@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data Masking</title>
+  <script>
+    try {
+      const savedTheme = localStorage.getItem('masking-theme');
+      document.documentElement.dataset.theme = savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch {
+      document.documentElement.dataset.theme = 'light';
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18212f;
+      --muted: #687386;
+      --line: #dfe5ec;
+      --paper: #ffffff;
+      --soft: #f4f7fa;
+      --brand: #3157d5;
+      --brand-dark: #2445b5;
+      --good: #14835f;
+      --bad: #c0394b;
+      --shadow: 0 18px 50px rgba(20, 31, 56, .10);
+      --page-start: #f8fafc;
+      --page-end: #eef2f7;
+      --glow: rgba(49, 87, 213, .13);
+      --card: rgba(255,255,255,.94);
+      --glass: rgba(255,255,255,.75);
+      --input: #fbfcfe;
+      --chip-bg: #eef2ff;
+      --chip-ink: #304aa8;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e7edf7;
+      --muted: #9aa8bc;
+      --line: #303c50;
+      --paper: #182234;
+      --soft: #111a29;
+      --brand: #6685ff;
+      --brand-dark: #7893ff;
+      --good: #47c99a;
+      --bad: #ff7b8c;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .32);
+      --page-start: #101827;
+      --page-end: #080e18;
+      --glow: rgba(81, 111, 232, .18);
+      --card: rgba(24,34,52,.96);
+      --glass: rgba(24,34,52,.82);
+      --input: #101927;
+      --chip-bg: #26365f;
+      --chip-ink: #b9c7ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 10% 5%, var(--glow), transparent 28rem),
+        linear-gradient(135deg, var(--page-start), var(--page-end));
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      transition: background .25s ease, color .25s ease;
+    }
+
+    .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 48px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+    .brand { display: flex; align-items: center; gap: 13px; }
+    .logo { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--brand); color: white; font-size: 22px; box-shadow: 0 8px 20px rgba(49, 87, 213, .25); }
+    h1 { margin: 0; font-size: clamp(21px, 3vw, 28px); letter-spacing: -.5px; }
+    .subtitle { margin: 3px 0 0; color: var(--muted); font-size: 14px; }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .status { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass); color: var(--muted); font-size: 13px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #aab2bf; }
+    .status.online .dot { background: #20b584; box-shadow: 0 0 0 4px rgba(32,181,132,.12); }
+    .theme-toggle { display: grid; place-items: center; width: 39px; height: 39px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--glass); color: var(--ink); font-size: 18px; cursor: pointer; transition: transform .2s, background .2s; }
+    .theme-toggle:hover { transform: translateY(-1px) rotate(8deg); background: var(--paper); }
+
+    .card { overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: var(--shadow); }
+    .tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--soft); }
+    .tab { border: 0; border-radius: 10px; padding: 10px 18px; background: transparent; color: var(--muted); font: inherit; font-weight: 650; cursor: pointer; }
+    .tab.active { background: var(--paper); color: var(--brand); box-shadow: 0 2px 8px rgba(31,44,71,.08); }
+    .panel { display: none; padding: clamp(20px, 4vw, 32px); }
+    .panel.active { display: block; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    label { display: block; margin-bottom: 9px; font-size: 14px; font-weight: 700; }
+    textarea {
+      width: 100%; min-height: 245px; resize: vertical; border: 1px solid var(--line); border-radius: 13px;
+      padding: 15px; background: var(--input); color: var(--ink); font: 15px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(49,87,213,.10); }
+    textarea[readonly] { background: var(--soft); }
+    input, select {
+      width: 100%; height: 44px; border: 1px solid var(--line); border-radius: 11px; padding: 0 12px;
+      background: var(--input); color: var(--ink); font: inherit; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(49,87,213,.10); }
+    .settings-grid { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 14px; margin-bottom: 18px; }
+    .field-key { grid-column: span 3; }
+    .field-note { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+    .chat-box { height: 350px; overflow-y: auto; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); }
+    .chat-empty { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; }
+    .bubble { width: fit-content; max-width: min(78%, 720px); margin-bottom: 12px; padding: 11px 14px; border-radius: 14px; line-height: 1.55; white-space: pre-wrap; }
+    .bubble.user { margin-left: auto; border-bottom-right-radius: 4px; background: var(--brand); color: white; }
+    .bubble.assistant { border: 1px solid var(--line); border-bottom-left-radius: 4px; background: var(--paper); }
+    .chat-compose { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; align-items: end; }
+    .chat-compose textarea { min-height: 76px; height: 76px; }
+    .chat-compose .primary { height: 44px; margin-bottom: 1px; }
+    .privacy { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--good); font-size: 12px; }
+    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    button.primary, button.secondary { border: 0; border-radius: 11px; padding: 11px 17px; font: inherit; font-weight: 700; cursor: pointer; transition: .18s ease; }
+    button.primary { background: var(--brand); color: white; box-shadow: 0 7px 16px rgba(49,87,213,.22); }
+    button.primary:hover { background: var(--brand-dark); transform: translateY(-1px); }
+    button.secondary { border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+    button:disabled { opacity: .55; cursor: wait; transform: none !important; }
+    .hint { color: var(--muted); font-size: 13px; }
+    .message { min-height: 20px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+    .message.error { color: var(--bad); }
+    .message.success { color: var(--good); }
+    .meta { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .meta-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .entities { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { padding: 7px 10px; border-radius: 9px; background: var(--chip-bg); color: var(--chip-ink); font-size: 12px; font-weight: 700; }
+    .empty { color: var(--muted); font-size: 13px; }
+    .session { margin-top: 13px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 1120px); padding-top: 20px; }
+      header { align-items: flex-start; }
+      .subtitle { display: none; }
+      .grid { grid-template-columns: 1fr; }
+      .settings-grid { grid-template-columns: 1fr; }
+      .field-key { grid-column: auto; }
+      .tabs { overflow-x: auto; }
+      .tab { white-space: nowrap; }
+      .chat-compose { grid-template-columns: 1fr; }
+      textarea { min-height: 190px; }
+      .status span:last-child { display: none; }
+      .header-actions { gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">◈</div>
+        <div>
+          <h1>Data Masking</h1>
+          <p class="subtitle">Ẩn dữ liệu nhạy cảm trước khi gửi tới AI công khai</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Chuyển giao diện">◐</button>
+        <div id="status" class="status"><span class="dot"></span><span>Đang kiểm tra API</span></div>
+      </div>
+    </header>
+
+    <section class="card">
+      <nav class="tabs" aria-label="Chức năng">
+        <button class="tab active" data-panel="mask-panel">Che dữ liệu</button>
+        <button class="tab" data-panel="unmask-panel">Khôi phục dữ liệu</button>
+        <button class="tab" data-panel="chat-panel">Chat với Public LLM</button>
+      </nav>
+
+      <section id="mask-panel" class="panel active">
+        <div class="grid">
+          <div>
+            <label for="source">Văn bản gốc</label>
+            <textarea id="source" placeholder="Ví dụ: Công ty ABC ký hợp đồng trị giá 12 tỷ đồng. Liên hệ 0901234567..."></textarea>
+            <div class="actions">
+              <button id="mask-btn" class="primary">Che dữ liệu</button>
+              <button id="clear-btn" class="secondary">Xóa</button>
+            </div>
+            <div id="mask-message" class="message"></div>
+          </div>
+          <div>
+            <label for="masked">Kết quả đã che</label>
+            <textarea id="masked" readonly placeholder="Kết quả sẽ xuất hiện ở đây..."></textarea>
+            <div class="actions">
+              <button id="copy-btn" class="secondary" disabled>Sao chép</button>
+              <button id="send-unmask-btn" class="secondary" disabled>Chuyển sang khôi phục</button>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="meta-head"><label>Thông tin phát hiện</label><span id="entity-count" class="hint">0 entity</span></div>
+          <div id="entities" class="entities"><span class="empty">Chưa có dữ liệu.</span></div>
+          <div id="session" class="session"></div>
+        </div>
+      </section>
+
+      <section id="unmask-panel" class="panel">
+        <div class="grid">
+          <div>
+            <label for="unmask-source">Văn bản chứa placeholder</label>
+            <textarea id="unmask-source" placeholder="Dán phản hồi từ Public LLM có chứa [PLACEHOLDER_1]..."></textarea>
+          </div>
+          <div>
+            <label for="restored">Văn bản đã khôi phục</label>
+            <textarea id="restored" readonly placeholder="Kết quả khôi phục sẽ xuất hiện ở đây..."></textarea>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="unmask-btn" class="primary">Khôi phục dữ liệu</button>
+          <span class="hint">Sử dụng session gần nhất từ bước Che dữ liệu.</span>
+        </div>
+        <div id="unmask-message" class="message"></div>
+      </section>
+
+      <section id="chat-panel" class="panel">
+        <div class="settings-grid">
+          <div>
+            <label for="provider">Loại API</label>
+            <select id="provider">
+              <option value="openai_compatible">OpenAI-compatible</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </div>
+          <div>
+            <label for="api-url">API URL</label>
+            <input id="api-url" type="url" value="https://api.openai.com/v1/chat/completions" spellcheck="false">
+          </div>
+          <div>
+            <label for="model">Tên model</label>
+            <input id="model" type="text" placeholder="Nhập model của nhà cung cấp" spellcheck="false">
+          </div>
+          <div class="field-key">
+            <label for="api-key">API key</label>
+            <input id="api-key" type="password" placeholder="Dán API key tại đây" autocomplete="off" spellcheck="false">
+            <p class="field-note">Key chỉ nằm trong ô này và được gửi qua backend cục bộ cho từng tin nhắn; ứng dụng không lưu key.</p>
+          </div>
+        </div>
+
+        <div id="chat-box" class="chat-box">
+          <div id="chat-empty" class="chat-empty">Nhập cấu hình API và bắt đầu trò chuyện.<br>Dữ liệu nhạy cảm sẽ được che trước khi rời khỏi máy.</div>
+        </div>
+        <div class="chat-compose">
+          <textarea id="chat-input" placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+          <button id="chat-send" class="primary">Gửi tin nhắn</button>
+        </div>
+        <div class="privacy">● Local LLM sẽ mask toàn bộ lịch sử trước khi gọi Public LLM</div>
+        <div id="chat-message" class="message"></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    let sessionId = '';
+    let chatHistory = [];
+    const $ = (id) => document.getElementById(id);
+
+    function showPanel(id) {
+      document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.panel === id));
+      document.querySelectorAll('.panel').forEach((panel) => panel.classList.toggle('active', panel.id === id));
+    }
+
+    function message(id, text, kind = '') {
+      const el = $(id);
+      el.textContent = text;
+      el.className = `message ${kind}`;
+    }
+
+    function updateThemeButton() {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      $('theme-toggle').textContent = isDark ? '☀' : '☾';
+      $('theme-toggle').setAttribute('aria-label', isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối');
+      $('theme-toggle').title = isDark ? 'Giao diện sáng' : 'Giao diện tối';
+    }
+
+    $('theme-toggle').addEventListener('click', () => {
+      const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = nextTheme;
+      try { localStorage.setItem('masking-theme', nextTheme); } catch {}
+      updateThemeButton();
+    });
+
+    async function api(path, body) {
+      const response = await fetch(path, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || `Lỗi HTTP ${response.status}`);
+      return data;
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch('/health', { cache: 'no-store' });
+        if (!response.ok) throw new Error();
+        $('status').classList.add('online');
+        $('status').lastElementChild.textContent = 'API đang hoạt động';
+      } catch {
+        $('status').lastElementChild.textContent = 'Không kết nối được API';
+      }
+    }
+
+    document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => showPanel(tab.dataset.panel)));
+
+    $('mask-btn').addEventListener('click', async () => {
+      const text = $('source').value.trim();
+      if (!text) return message('mask-message', 'Vui lòng nhập văn bản cần xử lý.', 'error');
+      const button = $('mask-btn');
+      button.disabled = true;
+      button.textContent = 'Đang xử lý...';
+      message('mask-message', 'Local LLM đang tìm dữ liệu nhạy cảm...');
+      try {
+        const result = await api('/mask', { text });
+        sessionId = result.session_id;
+        $('masked').value = result.masked_text;
+        $('entity-count').textContent = `${result.entity_count} entity`;
+        $('session').textContent = `Session: ${sessionId}`;
+        $('copy-btn').disabled = false;
+        $('send-unmask-btn').disabled = false;
+        $('entities').innerHTML = '';
+        if (!result.entities.length) $('entities').innerHTML = '<span class="empty">Không phát hiện dữ liệu nhạy cảm.</span>';
+        result.entities.forEach((entity) => {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = `${entity.type}: ${entity.text}`;
+          $('entities').appendChild(chip);
+        });
+        message('mask-message', 'Đã che dữ liệu thành công.', 'success');
+      } catch (error) {
+        message('mask-message', error.message, 'error');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Che dữ liệu';
+      }
+    });
+
+    $('unmask-btn').addEventListener('click', async () => {
+      const text = $('unmask-source').value.trim();
+      if (!sessionId) return message('unmask-message', 'Hãy thực hiện Che dữ liệu trước để tạo session.', 'error');
+      if (!text) return message('unmask-message', 'Vui lòng nhập văn bản chứa placeholder.', 'error');
+      const button = $('unmask-btn');
+      button.disabled = true;
+      try {
+        const result = await api('/unmask', { session_id: sessionId, text });
+        $('restored').value = result.final_text;
+        message('unmask-message', 'Đã khôi phục dữ liệu thành công.', 'success');
+      } catch (error) {
+        message('unmask-message', error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    $('send-unmask-btn').addEventListener('click', () => {
+      $('unmask-source').value = $('masked').value;
+      showPanel('unmask-panel');
+    });
+
+    $('copy-btn').addEventListener('click', async () => {
+      await navigator.clipboard.writeText($('masked').value);
+      message('mask-message', 'Đã sao chép kết quả.', 'success');
+    });
+
+    $('clear-btn').addEventListener('click', () => {
+      sessionId = '';
+      ['source', 'masked', 'unmask-source', 'restored'].forEach((id) => $(id).value = '');
+      $('entities').innerHTML = '<span class="empty">Chưa có dữ liệu.</span>';
+      $('entity-count').textContent = '0 entity';
+      $('session').textContent = '';
+      $('copy-btn').disabled = true;
+      $('send-unmask-btn').disabled = true;
+      message('mask-message', '');
+      message('unmask-message', '');
+    });
+
+    $('provider').addEventListener('change', () => {
+      if ($('provider').value === 'anthropic') {
+        $('api-url').value = 'https://api.anthropic.com/v1/messages';
+        $('model').value = '';
+      } else if ($('provider').value === 'gemini') {
+        $('api-url').value = 'https://generativelanguage.googleapis.com/v1beta/models';
+        $('model').value = 'gemini-3.6-flash';
+      } else {
+        $('api-url').value = 'https://api.openai.com/v1/chat/completions';
+        $('model').value = '';
+      }
+    });
+
+    function addBubble(role, content) {
+      $('chat-empty')?.remove();
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${role}`;
+      bubble.textContent = content;
+      $('chat-box').appendChild(bubble);
+      $('chat-box').scrollTop = $('chat-box').scrollHeight;
+    }
+
+    async function sendChat() {
+      const text = $('chat-input').value.trim();
+      const apiKey = $('api-key').value.trim();
+      const apiUrl = $('api-url').value.trim();
+      const model = $('model').value.trim();
+      if (!apiUrl || !model || !apiKey) return message('chat-message', 'Vui lòng nhập đủ API URL, model và API key.', 'error');
+      if (!text) return message('chat-message', 'Vui lòng nhập tin nhắn.', 'error');
+
+      const button = $('chat-send');
+      button.disabled = true;
+      button.textContent = 'Đang xử lý...';
+      message('chat-message', 'Đang mask dữ liệu và gọi Public LLM...');
+      addBubble('user', text);
+      $('chat-input').value = '';
+
+      try {
+        const result = await api('/chat', {
+          text,
+          api_url: apiUrl,
+          api_key: apiKey,
+          model,
+          provider: $('provider').value,
+          history: chatHistory,
+        });
+        addBubble('assistant', result.final_text);
+        chatHistory.push({ role: 'user', content: text });
+        chatHistory.push({ role: 'assistant', content: result.final_text });
+        message('chat-message', `Đã che ${result.entity_count} entity trước khi gửi.`, 'success');
+      } catch (error) {
+        addBubble('assistant', `Không thể trả lời: ${error.message}`);
+        message('chat-message', error.message, 'error');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Gửi tin nhắn';
+        $('chat-input').focus();
+      }
+    }
+
+    $('chat-send').addEventListener('click', sendChat);
+    $('chat-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendChat();
+      }
+    });
+
+    updateThemeButton();
+    checkHealth();
+  </script>
+</body>
+</html>
