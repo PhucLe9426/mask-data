@@ -40,6 +40,7 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Che và khôi phục dữ liệu theo `session_id`.
 - Chat trực tiếp với OpenAI-compatible, Anthropic và Google Gemini.
 - Che toàn bộ lịch sử trò chuyện trước khi gửi tới Public LLM.
+- Lưu, mở lại và xóa cuộc trò chuyện bằng PostgreSQL; API key không được lưu.
 - Tự thử lại tối đa 3 lần khi Gemini gặp lỗi tạm thời `429`, `500`, `502`,
   `503` hoặc `504`.
 - Giao diện responsive, hỗ trợ sáng/tối và ghi nhớ theme trên trình duyệt.
@@ -48,6 +49,7 @@ Lê Trọng Phúc, số điện thoại 0913885457
 ## Yêu cầu
 
 - Python 3.10 trở lên.
+- Docker Desktop để chạy PostgreSQL cục bộ, hoặc một PostgreSQL bên ngoài.
 - Local LLM có API tương thích OpenAI Chat Completions.
 - Local LLM mặc định của dự án:
   `http://192.168.210.212:8000/v1/chat/completions`.
@@ -84,7 +86,71 @@ cp .env.example .env
 Mở `.env` và kiểm tra `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL` cùng timeout phù hợp
 với môi trường của bạn.
 
-## Chạy ứng dụng
+## Khởi động PostgreSQL
+
+Dự án cung cấp `docker-compose.yml` chạy PostgreSQL 18 trên port `5434` để
+không xung đột với các PostgreSQL khác thường dùng `5432` hoặc `5433`.
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+```
+
+Khi cột trạng thái hiển thị `healthy`, có thể chạy FastAPI. Dữ liệu được giữ
+trong Docker volume `masking-app_masking_postgres_data`, nên vẫn còn sau khi
+restart container hoặc máy tính.
+
+Để dừng database mà vẫn giữ dữ liệu:
+
+```powershell
+docker compose stop postgres
+```
+
+Không chạy `docker compose down -v` nếu bạn muốn giữ lịch sử; tùy chọn `-v` sẽ
+xóa volume chứa toàn bộ cuộc trò chuyện.
+
+## Chạy toàn bộ bằng Docker
+
+Đây là cách khuyến nghị vì cả FastAPI và PostgreSQL được quản lý chung bằng
+Docker Compose:
+
+```powershell
+cd C:\Users\admin\Downloads\masking-app\masking-app
+docker compose up -d --build
+docker compose ps
+```
+
+Hai service phải hiển thị `healthy`:
+
+- `masking-api`: FastAPI tại <http://127.0.0.1:8080/>
+- `masking-postgres`: PostgreSQL, publish ra host ở port `5434`
+
+Xem log FastAPI:
+
+```powershell
+docker compose logs -f app
+```
+
+Sau khi sửa code, build và chạy lại app:
+
+```powershell
+docker compose up -d --build app
+```
+
+Dừng stack nhưng vẫn giữ dữ liệu:
+
+```powershell
+docker compose stop
+```
+
+FastAPI trong Docker kết nối database qua hostname nội bộ `postgres:5432`.
+Compose tự override `DATABASE_URL`; giá trị port `5434` trong `.env.example`
+chỉ dùng khi chạy FastAPI trực tiếp trên Windows.
+
+## Chạy FastAPI trực tiếp trên máy
+
+Chỉ dùng cách này khi muốn phát triển/debug ngoài Docker. PostgreSQL vẫn cần
+được khởi động trước bằng `docker compose up -d postgres`.
 
 ### Windows PowerShell
 
@@ -109,9 +175,14 @@ Giữ terminal mở trong lúc sử dụng. Nhấn `Ctrl+C` để dừng server.
 
 ## Chat với Public LLM
 
-Mở tab **Chat với Public LLM** trên giao diện, sau đó nhập API URL, model và
-API key. Key chỉ tồn tại trong ô nhập trên trang và được gửi tới backend cục bộ
-trong từng request; ứng dụng không ghi key vào file hoặc `localStorage`.
+Mở giao diện, sau đó nhập API URL, model và API key. Key chỉ tồn tại trong ô
+nhập trên trang và được gửi tới backend cục bộ trong từng request; ứng dụng
+không ghi key vào file, PostgreSQL hoặc `localStorage`.
+
+Sidebar bên trái hiển thị các cuộc trò chuyện đã lưu. Nút **+ Mới** bắt đầu hội
+thoại mới; bấm vào một mục để tải lại lịch sử hoặc nút **×** để xóa. PostgreSQL
+lưu nội dung, provider, model, API URL và entity mapping để placeholder được
+khôi phục ổn định giữa nhiều lượt chat.
 
 | Loại API | API URL mẫu | Model |
 | --- | --- | --- |
@@ -178,9 +249,24 @@ trợ là `openai_compatible`, `anthropic` và `gemini`.
   "api_key": "API_KEY_CUA_BAN",
   "model": "gemini-3.6-flash",
   "provider": "gemini",
-  "history": []
+  "conversation_id": null
 }
 ```
+
+Response trả thêm `conversation_id`. Gửi lại ID này ở lượt tiếp theo để backend
+lấy lịch sử từ PostgreSQL, mask toàn bộ lịch sử rồi lưu cặp tin nhắn mới.
+
+### `GET /conversations`
+
+Liệt kê các cuộc trò chuyện theo thời gian cập nhật gần nhất.
+
+### `GET /conversations/{conversation_id}`
+
+Lấy cấu hình và toàn bộ tin nhắn của một cuộc trò chuyện.
+
+### `DELETE /conversations/{conversation_id}`
+
+Xóa cuộc trò chuyện cùng các tin nhắn liên quan.
 
 ### `POST /process`
 
@@ -200,6 +286,10 @@ PUBLIC_LLM_MODEL=
 
 REQUEST_TIMEOUT=180
 SESSION_TTL_SECONDS=3600
+
+DATABASE_URL=postgresql://masking:masking_dev_password@127.0.0.1:5434/masking_app
+DATABASE_MIN_POOL_SIZE=1
+DATABASE_MAX_POOL_SIZE=5
 ```
 
 Không commit file `.env`. Repository đã có `.gitignore` để loại trừ secrets,
@@ -210,7 +300,8 @@ môi trường Python, cache và log runtime.
 ### Không kết nối được API
 
 - Kiểm tra Uvicorn còn chạy hay không.
-- Mở <http://127.0.0.1:8080/health> và xác nhận response `{"status":"ok"}`.
+- Mở <http://127.0.0.1:8080/health> và xác nhận `status` cùng `database` đều
+  là `ok`.
 - Tải lại trang bằng `Ctrl+Shift+R`.
 
 ### Không gọi được local LLM
@@ -230,7 +321,8 @@ Kiểm tra API key, model, quyền truy cập và API URL của nhà cung cấp.
 ## Lưu ý khi triển khai production
 
 - Session mapping hiện được lưu trong RAM và mất khi restart. Nhiều worker cũng
-  không dùng chung mapping; nên chuyển sang Redis nếu triển khai thực tế.
+  không dùng chung mapping; hội thoại vẫn được giữ trong PostgreSQL, nhưng nên
+  chuyển mapping tạm sang Redis nếu triển khai nhiều worker.
 - CORS đang mở `*`; cần giới hạn origin được phép truy cập.
 - Endpoint `/chat` nhận API URL từ người dùng. Nếu public ứng dụng ra Internet,
   cần whitelist domain nhà cung cấp để tránh SSRF.
@@ -248,5 +340,6 @@ app/
 ├── main.py         # FastAPI endpoints
 ├── masking.py      # Detect, mask, unmask và session mapping
 ├── public_llm.py   # OpenAI-compatible, Anthropic và Gemini clients
+├── storage.py      # PostgreSQL pool, schema và CRUD hội thoại
 └── web.html        # Giao diện web
 ```

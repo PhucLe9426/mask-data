@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 from typing import Literal
 
@@ -7,13 +9,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, HttpUrl
 
-from app import masking
+from app import masking, storage
 from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        await storage.connect_database()
+    except Exception as exc:
+        logger.warning("PostgreSQL chưa sẵn sàng khi khởi động: %s", exc)
+    yield
+    await storage.close_database()
+
 
 app = FastAPI(
     title="Data Masking API",
     description="Mask dữ liệu nhạy cảm bằng local LLM trước khi gửi ra Public LLM",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS mở cho dev — production nên giới hạn origin cụ thể
@@ -78,15 +94,27 @@ class ChatRequest(BaseModel):
     provider: str = "openai_compatible"
     system_prompt: str | None = None
     history: list[ChatMessage] = Field(default_factory=list)
+    conversation_id: str | None = None
 
 
 class ChatResponse(BaseModel):
+    conversation_id: str
     session_id: str
     masked_text: str
     public_llm_response: str
     final_text: str
     entities: list[dict]
     entity_count: int
+
+
+async def require_database() -> None:
+    try:
+        await storage.connect_database()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Không kết nối được PostgreSQL. Hãy kiểm tra DATABASE_URL và container database.",
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +131,34 @@ async def web_interface():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    try:
+        await storage.connect_database()
+        database_status = "ok"
+    except Exception:
+        database_status = "unavailable"
+    return {"status": "ok", "database": database_status}
+
+
+@app.get("/conversations")
+async def conversations_list():
+    await require_database()
+    return {"conversations": await storage.list_conversations()}
+
+
+@app.get("/conversations/{conversation_id}")
+async def conversation_detail(conversation_id: str):
+    await require_database()
+    conversation = await storage.get_conversation(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Cuộc trò chuyện không tồn tại")
+    return conversation
+
+
+@app.delete("/conversations/{conversation_id}", status_code=204)
+async def conversation_delete(conversation_id: str):
+    await require_database()
+    if not await storage.delete_conversation(conversation_id):
+        raise HTTPException(status_code=404, detail="Cuộc trò chuyện không tồn tại")
 
 
 @app.post("/mask", response_model=MaskResponse)
@@ -151,17 +206,8 @@ async def process_endpoint(req: ProcessRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="text không được để trống")
 
-    # Bước 1: mask
-    conversation_parts = []
-    for item in req.history[-10:]:
-        label = "Người dùng" if item.role == "user" else "Trợ lý"
-        conversation_parts.append(f"{label}: {item.content}")
-    conversation_parts.append(f"Người dùng: {req.text}")
-    conversation_parts.append("Trợ lý: Hãy trả lời tin nhắn cuối cùng của người dùng.")
-    conversation_text = "\n\n".join(conversation_parts)
-
     try:
-        mask_result = await masking.process_mask(conversation_text)
+        mask_result = await masking.process_mask(req.text)
     except masking.LocalLLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -198,8 +244,33 @@ async def chat_endpoint(req: ChatRequest):
     if req.provider not in {"openai_compatible", "anthropic", "gemini"}:
         raise HTTPException(status_code=400, detail="Nhà cung cấp không được hỗ trợ")
 
+    await require_database()
+
+    stored_messages: list[dict] = []
+    if req.conversation_id:
+        conversation = await storage.get_conversation(req.conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Cuộc trò chuyện không tồn tại")
+        stored_messages = conversation["messages"][-20:]
+    else:
+        stored_messages = [item.model_dump() for item in req.history[-20:]]
+
+    conversation_parts = []
+    known_entities: list[dict[str, str]] = []
+    for item in stored_messages:
+        label = "Người dùng" if item["role"] == "user" else "Trợ lý"
+        conversation_parts.append(f"{label}: {item['content']}")
+        known_entities.extend(item.get("entities", []))
+    conversation_parts.append(f"Người dùng: {req.text}")
+    conversation_parts.append("Trợ lý: Hãy trả lời tin nhắn cuối cùng của người dùng.")
+    conversation_text = "\n\n".join(conversation_parts)
+
     try:
-        mask_result = await masking.process_mask(req.text)
+        mask_result = await masking.process_mask(
+            conversation_text,
+            known_entities=known_entities,
+            detection_text=req.text,
+        )
     except masking.LocalLLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -240,11 +311,39 @@ async def chat_endpoint(req: ChatRequest):
         raise HTTPException(status_code=502, detail=f"Không gọi được Public LLM: {e}") from e
 
     unmask_result = masking.process_unmask(mask_result["session_id"], public_response)
+    final_text = unmask_result["final_text"]
+
+    conversation_id = req.conversation_id
+    if conversation_id is None:
+        title = " ".join(req.text.strip().split())[:60] or "Cuộc trò chuyện mới"
+        conversation = await storage.create_conversation(
+            title=title,
+            provider=req.provider,
+            model=req.model,
+            api_url=str(req.api_url),
+        )
+        conversation_id = conversation["id"]
+    else:
+        await storage.update_conversation_config(
+            conversation_id,
+            req.provider,
+            req.model,
+            str(req.api_url),
+        )
+
+    await storage.add_exchange(
+        conversation_id,
+        req.text,
+        final_text,
+        mask_result["entity_count"],
+        mask_result["entities"],
+    )
     return {
+        "conversation_id": conversation_id,
         "session_id": mask_result["session_id"],
         "masked_text": mask_result["masked_text"],
         "public_llm_response": public_response,
-        "final_text": unmask_result["final_text"],
+        "final_text": final_text,
         "entities": mask_result["entities"],
         "entity_count": mask_result["entity_count"],
     }

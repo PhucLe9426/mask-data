@@ -23,5 +23,13 @@ class Settings:
     # Bật/tắt lưu mapping trong bộ nhớ tạm (in-memory) theo session_id
     SESSION_TTL_SECONDS: int = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
 
+    # PostgreSQL lưu lịch sử hội thoại. Không lưu API key trong database.
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "postgresql://masking:masking_dev_password@127.0.0.1:5434/masking_app",
+    )
+    DATABASE_MIN_POOL_SIZE: int = int(os.getenv("DATABASE_MIN_POOL_SIZE", "1"))
+    DATABASE_MAX_POOL_SIZE: int = int(os.getenv("DATABASE_MAX_POOL_SIZE", "5"))
+
 
 settings = Settings()

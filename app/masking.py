@@ -202,11 +202,16 @@ def unmask_text(text: str, mapping: dict[str, str]) -> str:
     return result
 
 
-async def process_mask(text: str) -> dict[str, Any]:
+async def process_mask(
+    text: str,
+    known_entities: list[dict[str, str]] | None = None,
+    detection_text: str | None = None,
+) -> dict[str, Any]:
     """Pipeline đầy đủ: detect -> mask -> lưu session -> trả về masked_text + session_id."""
     _cleanup_expired_sessions()
 
-    entities = reconcile_entities(text, await detect_entities(text))
+    detected_entities = await detect_entities(detection_text or text)
+    entities = reconcile_entities(text, [*(known_entities or []), *detected_entities])
     masked_text, mapping = mask_text(text, entities)
 
     session_id = str(uuid.uuid4())
