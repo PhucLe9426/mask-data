@@ -69,6 +69,50 @@ async def detect_entities(text: str) -> list[dict[str, str]]:
     return _parse_entities_json(content)
 
 
+def split_detection_text(text: str, max_chars: int) -> list[str]:
+    """Split long input at line/word boundaries for local LLM entity detection."""
+    if max_chars < 1000:
+        max_chars = 1000
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks: list[str] = []
+    start = 0
+    text_length = len(text)
+    while start < text_length:
+        end = min(start + max_chars, text_length)
+        if end < text_length:
+            search_from = start + max_chars // 2
+            newline_boundary = text.rfind("\n", search_from, end)
+            space_boundary = text.rfind(" ", search_from, end)
+            boundary = max(newline_boundary, space_boundary)
+            if boundary > start:
+                end = boundary + 1
+
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = end
+
+    return chunks
+
+
+async def detect_entities_chunked(text: str) -> list[dict[str, str]]:
+    """Detect entities sequentially so long files do not overflow local LLM context."""
+    chunks = split_detection_text(text, settings.LOCAL_LLM_CHUNK_CHARS)
+    detected: list[dict[str, str]] = []
+    for index, chunk in enumerate(chunks, start=1):
+        try:
+            detected.extend(await detect_entities(chunk))
+        except LocalLLMError as exc:
+            if len(chunks) == 1:
+                raise
+            raise LocalLLMError(
+                f"Local LLM không xử lý được phần {index}/{len(chunks)} của tài liệu: {exc}"
+            ) from exc
+    return detected
+
+
 def _parse_entities_json(content: str) -> list[dict[str, str]]:
     """Parse JSON entities từ response, chịu lỗi nếu model trả JSON có dính text thừa
     hoặc bị cắt cụt giữa chừng."""
@@ -210,7 +254,7 @@ async def process_mask(
     """Pipeline đầy đủ: detect -> mask -> lưu session -> trả về masked_text + session_id."""
     _cleanup_expired_sessions()
 
-    detected_entities = await detect_entities(detection_text or text)
+    detected_entities = await detect_entities_chunked(detection_text or text)
     entities = reconcile_entities(text, [*(known_entities or []), *detected_entities])
     masked_text, mapping = mask_text(text, entities)
 

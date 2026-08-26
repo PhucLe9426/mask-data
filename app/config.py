@@ -31,5 +31,10 @@ class Settings:
     DATABASE_MIN_POOL_SIZE: int = int(os.getenv("DATABASE_MIN_POOL_SIZE", "1"))
     DATABASE_MAX_POOL_SIZE: int = int(os.getenv("DATABASE_MAX_POOL_SIZE", "5"))
 
+    # Giới hạn upload để bảo vệ RAM và context window của local/public LLM.
+    MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+    MAX_EXTRACTED_CHARS: int = int(os.getenv("MAX_EXTRACTED_CHARS", "200000"))
+    LOCAL_LLM_CHUNK_CHARS: int = int(os.getenv("LOCAL_LLM_CHUNK_CHARS", "12000"))
+
 
 settings = Settings()

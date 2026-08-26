@@ -34,11 +34,17 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     entity_count INTEGER NOT NULL DEFAULT 0 CHECK (entity_count >= 0),
     entities JSONB NOT NULL DEFAULT '[]'::jsonb,
+    attachment_name TEXT,
+    attachment_text TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS entities JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_name TEXT;
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS attachment_text TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
     ON messages(conversation_id, created_at, id);
@@ -145,7 +151,11 @@ async def list_conversations() -> list[dict[str, Any]]:
     return [_record_to_dict(row) for row in rows]
 
 
-async def get_conversation(conversation_id: str) -> dict[str, Any] | None:
+async def get_conversation(
+    conversation_id: str,
+    *,
+    include_attachment_text: bool = False,
+) -> dict[str, Any] | None:
     try:
         parsed_id = uuid.UUID(conversation_id)
     except ValueError:
@@ -159,9 +169,11 @@ async def get_conversation(conversation_id: str) -> dict[str, Any] | None:
     if conversation is None:
         return None
 
+    attachment_text_column = ", attachment_text" if include_attachment_text else ""
     messages = await pool.fetch(
-        """
-        SELECT id, conversation_id, role, content, entity_count, entities, created_at
+        f"""
+        SELECT id, conversation_id, role, content, entity_count, entities,
+               attachment_name, created_at{attachment_text_column}
         FROM messages
         WHERE conversation_id = $1
         ORDER BY created_at, id
@@ -198,6 +210,8 @@ async def add_exchange(
     assistant_text: str,
     entity_count: int,
     entities: list[dict[str, str]],
+    attachment_name: str | None = None,
+    attachment_text: str | None = None,
 ) -> None:
     parsed_id = uuid.UUID(conversation_id)
     pool = _get_pool()
@@ -205,12 +219,23 @@ async def add_exchange(
         async with connection.transaction():
             await connection.executemany(
                 """
-                INSERT INTO messages (conversation_id, role, content, entity_count, entities)
-                VALUES ($1, $2, $3, $4, $5::jsonb)
+                INSERT INTO messages (
+                    conversation_id, role, content, entity_count, entities,
+                    attachment_name, attachment_text
+                )
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
                 """,
                 [
-                    (parsed_id, "user", user_text, entity_count, json.dumps(entities)),
-                    (parsed_id, "assistant", assistant_text, 0, json.dumps(entities)),
+                    (
+                        parsed_id,
+                        "user",
+                        user_text,
+                        entity_count,
+                        json.dumps(entities),
+                        attachment_name,
+                        attachment_text,
+                    ),
+                    (parsed_id, "assistant", assistant_text, 0, json.dumps(entities), None, None),
                 ],
             )
             await connection.execute(

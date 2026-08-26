@@ -1,15 +1,15 @@
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, HttpUrl
 
-from app import masking, storage
+from app import file_reader, masking, storage
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -237,6 +237,57 @@ async def process_endpoint(req: ProcessRequest):
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
     """Mask dữ liệu, gọi Public LLM bằng cấu hình tạm thời, rồi unmask."""
+    return await _run_chat(req)
+
+
+@app.post("/chat/file", response_model=ChatResponse)
+async def chat_file_endpoint(
+    file: Annotated[UploadFile, File(description="TXT, MD, CSV, JSON, PDF hoặc DOCX")],
+    api_url: Annotated[HttpUrl, Form()],
+    api_key: Annotated[str, Form()],
+    model: Annotated[str, Form()],
+    provider: Annotated[str, Form()] = "openai_compatible",
+    text: Annotated[str, Form()] = "",
+    system_prompt: Annotated[str | None, Form()] = None,
+    conversation_id: Annotated[str | None, Form()] = None,
+):
+    """Extract an upload locally, mask its text, then send only masked content outward."""
+    try:
+        content = await file.read(settings.MAX_UPLOAD_BYTES + 1)
+        attachment_name, attachment_text = file_reader.extract_text(
+            file.filename,
+            content,
+            max_bytes=settings.MAX_UPLOAD_BYTES,
+            max_chars=settings.MAX_EXTRACTED_CHARS,
+        )
+    except file_reader.FileExtractionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        await file.close()
+
+    user_text = text.strip() or "Hãy đọc, phân tích và trả lời dựa trên nội dung tệp."
+    request = ChatRequest(
+        text=user_text,
+        api_url=api_url,
+        api_key=api_key,
+        model=model,
+        provider=provider,
+        system_prompt=system_prompt,
+        conversation_id=conversation_id,
+    )
+    return await _run_chat(
+        request,
+        attachment_name=attachment_name,
+        attachment_text=attachment_text,
+    )
+
+
+async def _run_chat(
+    req: ChatRequest,
+    *,
+    attachment_name: str | None = None,
+    attachment_text: str | None = None,
+) -> dict:
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="text không được để trống")
     if not req.api_key.strip() or not req.model.strip():
@@ -248,7 +299,10 @@ async def chat_endpoint(req: ChatRequest):
 
     stored_messages: list[dict] = []
     if req.conversation_id:
-        conversation = await storage.get_conversation(req.conversation_id)
+        conversation = await storage.get_conversation(
+            req.conversation_id,
+            include_attachment_text=True,
+        )
         if conversation is None:
             raise HTTPException(status_code=404, detail="Cuộc trò chuyện không tồn tại")
         stored_messages = conversation["messages"][-20:]
@@ -259,9 +313,19 @@ async def chat_endpoint(req: ChatRequest):
     known_entities: list[dict[str, str]] = []
     for item in stored_messages:
         label = "Người dùng" if item["role"] == "user" else "Trợ lý"
-        conversation_parts.append(f"{label}: {item['content']}")
+        item_content = item["content"]
+        if item.get("attachment_text"):
+            item_content += (
+                f"\n\n[Tệp đính kèm: {item.get('attachment_name') or 'file'}]"
+                f"\n{item['attachment_text']}"
+            )
+        conversation_parts.append(f"{label}: {item_content}")
         known_entities.extend(item.get("entities", []))
-    conversation_parts.append(f"Người dùng: {req.text}")
+
+    current_user_content = req.text
+    if attachment_text:
+        current_user_content += f"\n\n[Tệp đính kèm: {attachment_name}]\n{attachment_text}"
+    conversation_parts.append(f"Người dùng: {current_user_content}")
     conversation_parts.append("Trợ lý: Hãy trả lời tin nhắn cuối cùng của người dùng.")
     conversation_text = "\n\n".join(conversation_parts)
 
@@ -269,7 +333,7 @@ async def chat_endpoint(req: ChatRequest):
         mask_result = await masking.process_mask(
             conversation_text,
             known_entities=known_entities,
-            detection_text=req.text,
+            detection_text=current_user_content,
         )
     except masking.LocalLLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
@@ -315,7 +379,8 @@ async def chat_endpoint(req: ChatRequest):
 
     conversation_id = req.conversation_id
     if conversation_id is None:
-        title = " ".join(req.text.strip().split())[:60] or "Cuộc trò chuyện mới"
+        title_source = req.text if not attachment_name else f"{req.text} — {attachment_name}"
+        title = " ".join(title_source.strip().split())[:60] or "Cuộc trò chuyện mới"
         conversation = await storage.create_conversation(
             title=title,
             provider=req.provider,
@@ -337,6 +402,8 @@ async def chat_endpoint(req: ChatRequest):
         final_text,
         mask_result["entity_count"],
         mask_result["entities"],
+        attachment_name=attachment_name,
+        attachment_text=attachment_text,
     )
     return {
         "conversation_id": conversation_id,

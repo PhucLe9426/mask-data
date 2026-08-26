@@ -184,6 +184,26 @@ thoại mới; bấm vào một mục để tải lại lịch sử hoặc nút 
 lưu nội dung, provider, model, API URL và entity mapping để placeholder được
 khôi phục ổn định giữa nhiều lượt chat.
 
+### Gửi file trong chat
+
+Nhấn **Đính kèm file** bên dưới ô nhập tin nhắn rồi chọn một trong các định dạng:
+`TXT`, `MD`, `CSV`, `JSON`, `XML`, `YAML`, `LOG`, `PDF` hoặc `DOCX`. Có thể nhập câu
+hỏi kèm theo hoặc chỉ gửi file để yêu cầu AI phân tích nội dung.
+
+Luồng xử lý file:
+
+```text
+File → FastAPI trích xuất text trong RAM → Local LLM phát hiện và mask dữ liệu
+     → Chỉ text đã mask được gửi tới Public LLM → Khôi phục câu trả lời
+```
+
+File gốc không được lưu. PostgreSQL chỉ lưu tên file và nội dung văn bản đã trích
+xuất để cuộc trò chuyện tiếp tục có ngữ cảnh; API key không được lưu. Mặc định file
+tối đa 10 MB và nội dung trích xuất tối đa 200.000 ký tự. Nội dung dài được chia
+thành các đoạn 12.000 ký tự để local LLM phát hiện entity tuần tự trước khi gộp và
+mask toàn bộ tài liệu. Các ô gộp trong bảng Word chỉ được đọc một lần để tránh lặp
+nội dung. PDF scan không có lớp text chưa được hỗ trợ OCR.
+
 | Loại API | API URL mẫu | Model |
 | --- | --- | --- |
 | OpenAI-compatible | `https://api.openai.com/v1/chat/completions` | Nhập model được nhà cung cấp hỗ trợ |
@@ -290,6 +310,10 @@ SESSION_TTL_SECONDS=3600
 DATABASE_URL=postgresql://masking:masking_dev_password@127.0.0.1:5434/masking_app
 DATABASE_MIN_POOL_SIZE=1
 DATABASE_MAX_POOL_SIZE=5
+
+MAX_UPLOAD_BYTES=10485760
+MAX_EXTRACTED_CHARS=200000
+LOCAL_LLM_CHUNK_CHARS=12000
 ```
 
 Không commit file `.env`. Repository đã có `.gitignore` để loại trừ secrets,
@@ -337,6 +361,7 @@ Kiểm tra API key, model, quyền truy cập và API URL của nhà cung cấp.
 app/
 ├── __init__.py
 ├── config.py       # Đọc cấu hình môi trường
+├── file_reader.py  # Trích xuất text cục bộ từ file upload
 ├── main.py         # FastAPI endpoints
 ├── masking.py      # Detect, mask, unmask và session mapping
 ├── public_llm.py   # OpenAI-compatible, Anthropic và Gemini clients

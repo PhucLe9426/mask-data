@@ -124,9 +124,17 @@
     .bubble { width: fit-content; max-width: min(78%, 720px); margin-bottom: 12px; padding: 11px 14px; border-radius: 14px; line-height: 1.55; white-space: pre-wrap; }
     .bubble.user { margin-left: auto; border-bottom-right-radius: 4px; background: var(--brand); color: white; }
     .bubble.assistant { border: 1px solid var(--line); border-bottom-left-radius: 4px; background: var(--paper); }
+    .bubble-attachment { margin-bottom: 6px; font-size: 12px; font-weight: 700; opacity: .85; }
     .chat-compose { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; align-items: end; }
+    .compose-main { min-width: 0; }
     .chat-compose textarea { min-height: 76px; height: 76px; }
     .chat-compose .primary { height: 44px; margin-bottom: 1px; }
+    .file-controls { display: flex; align-items: center; gap: 8px; min-height: 34px; margin-top: 7px; }
+    .attach-button, .file-remove { border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; cursor: pointer; }
+    .attach-button { padding: 7px 10px; font-size: 12px; font-weight: 700; }
+    .attach-button:hover { border-color: var(--brand); color: var(--brand); }
+    .selected-file { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .file-remove { display: none; width: 28px; height: 28px; padding: 0; color: var(--bad); }
     .privacy { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--good); font-size: 12px; }
     button.primary { border: 0; border-radius: 11px; padding: 11px 17px; font: inherit; font-weight: 700; cursor: pointer; transition: .18s ease; }
     button.primary { background: var(--brand); color: white; box-shadow: 0 7px 16px rgba(49,87,213,.22); }
@@ -214,10 +222,18 @@
           <div id="chat-empty" class="chat-empty">Nhập cấu hình API và bắt đầu trò chuyện.<br>Dữ liệu nhạy cảm sẽ được che trước khi rời khỏi máy.</div>
         </div>
         <div class="chat-compose">
-          <textarea id="chat-input" placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+          <div class="compose-main">
+            <textarea id="chat-input" placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+            <div class="file-controls">
+              <input id="file-input" type="file" hidden accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.docx">
+              <button id="attach-file" class="attach-button" type="button">📎 Đính kèm file</button>
+              <span id="selected-file" class="selected-file">TXT, MD, CSV, JSON, PDF, DOCX · tối đa 10 MB</span>
+              <button id="remove-file" class="file-remove" type="button" aria-label="Bỏ file">×</button>
+            </div>
+          </div>
           <button id="chat-send" class="primary">Gửi tin nhắn</button>
         </div>
-        <div class="privacy">● Local LLM sẽ mask toàn bộ lịch sử trước khi gọi Public LLM</div>
+        <div class="privacy">● File được đọc cục bộ; Local LLM mask nội dung trước khi gọi Public LLM</div>
         <div id="chat-message" class="message"></div>
         </section>
       </div>
@@ -226,6 +242,7 @@
 
   <script>
     let conversationId = null;
+    let selectedFile = null;
     const $ = (id) => document.getElementById(id);
 
     function message(id, text, kind = '') {
@@ -286,6 +303,7 @@
       conversationId = null;
       $('chat-box').innerHTML = '<div id="chat-empty" class="chat-empty">Bắt đầu cuộc trò chuyện mới.<br>Dữ liệu nhạy cảm sẽ được che trước khi rời khỏi máy.</div>';
       $('chat-input').value = '';
+      clearAttachment();
       message('chat-message', '');
       document.querySelectorAll('.conversation-item').forEach((item) => item.classList.remove('active'));
       $('chat-input').focus();
@@ -306,7 +324,7 @@
         if (!conversation.messages.length) {
           $('chat-box').innerHTML = '<div id="chat-empty" class="chat-empty">Cuộc trò chuyện chưa có tin nhắn.</div>';
         } else {
-          conversation.messages.forEach((item) => addBubble(item.role, item.content));
+          conversation.messages.forEach((item) => addBubble(item.role, item.content, item.attachment_name));
         }
         document.querySelectorAll('.conversation-item').forEach((item) => item.classList.toggle('active', item.dataset.id === id));
         message('chat-message', 'Đã tải lịch sử từ PostgreSQL.', 'success');
@@ -383,14 +401,44 @@
       }
     });
 
-    function addBubble(role, content) {
+    function addBubble(role, content, attachmentName = null) {
       $('chat-empty')?.remove();
       const bubble = document.createElement('div');
       bubble.className = `bubble ${role}`;
-      bubble.textContent = content;
+      if (attachmentName) {
+        const attachment = document.createElement('div');
+        attachment.className = 'bubble-attachment';
+        attachment.textContent = `📎 ${attachmentName}`;
+        bubble.appendChild(attachment);
+      }
+      const body = document.createElement('div');
+      body.textContent = content;
+      bubble.appendChild(body);
       $('chat-box').appendChild(bubble);
       $('chat-box').scrollTop = $('chat-box').scrollHeight;
     }
+
+    function clearAttachment() {
+      selectedFile = null;
+      $('file-input').value = '';
+      $('selected-file').textContent = 'TXT, MD, CSV, JSON, PDF, DOCX · tối đa 10 MB';
+      $('remove-file').style.display = 'none';
+    }
+
+    $('attach-file').addEventListener('click', () => $('file-input').click());
+    $('remove-file').addEventListener('click', clearAttachment);
+    $('file-input').addEventListener('change', () => {
+      const file = $('file-input').files[0];
+      if (!file) return clearAttachment();
+      if (file.size > 10 * 1024 * 1024) {
+        clearAttachment();
+        return message('chat-message', 'File vượt quá giới hạn 10 MB.', 'error');
+      }
+      selectedFile = file;
+      $('selected-file').textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+      $('remove-file').style.display = 'inline-block';
+      message('chat-message', 'File sẽ được đọc và che dữ liệu cục bộ trước khi gửi.', 'success');
+    });
 
     async function sendChat() {
       const text = $('chat-input').value.trim();
@@ -398,26 +446,43 @@
       const apiUrl = $('api-url').value.trim();
       const model = $('model').value.trim();
       if (!apiUrl || !model || !apiKey) return message('chat-message', 'Vui lòng nhập đủ API URL, model và API key.', 'error');
-      if (!text) return message('chat-message', 'Vui lòng nhập tin nhắn.', 'error');
+      if (!text && !selectedFile) return message('chat-message', 'Vui lòng nhập tin nhắn hoặc đính kèm file.', 'error');
 
       const button = $('chat-send');
+      const fileToSend = selectedFile;
+      const displayText = text || 'Hãy đọc, phân tích và trả lời dựa trên nội dung tệp.';
       button.disabled = true;
+      $('attach-file').disabled = true;
       button.textContent = 'Đang xử lý...';
-      message('chat-message', 'Đang mask dữ liệu và gọi Public LLM...');
-      addBubble('user', text);
+      message('chat-message', fileToSend ? 'Đang đọc file, mask dữ liệu và gọi Public LLM...' : 'Đang mask dữ liệu và gọi Public LLM...');
+      addBubble('user', displayText, fileToSend?.name);
       $('chat-input').value = '';
 
       try {
-        const result = await api('/chat', {
-          text,
-          api_url: apiUrl,
-          api_key: apiKey,
-          model,
-          provider: $('provider').value,
-          conversation_id: conversationId,
-        });
+        let result;
+        if (fileToSend) {
+          const formData = new FormData();
+          formData.append('file', fileToSend);
+          formData.append('text', text);
+          formData.append('api_url', apiUrl);
+          formData.append('api_key', apiKey);
+          formData.append('model', model);
+          formData.append('provider', $('provider').value);
+          if (conversationId) formData.append('conversation_id', conversationId);
+          result = await fetchJson('/chat/file', { method: 'POST', body: formData });
+        } else {
+          result = await api('/chat', {
+            text,
+            api_url: apiUrl,
+            api_key: apiKey,
+            model,
+            provider: $('provider').value,
+            conversation_id: conversationId,
+          });
+        }
         conversationId = result.conversation_id;
         addBubble('assistant', result.final_text);
+        clearAttachment();
         await loadConversations();
         message('chat-message', `Đã che ${result.entity_count} entity trước khi gửi.`, 'success');
       } catch (error) {
@@ -425,6 +490,7 @@
         message('chat-message', error.message, 'error');
       } finally {
         button.disabled = false;
+        $('attach-file').disabled = false;
         button.textContent = 'Gửi tin nhắn';
         $('chat-input').focus();
       }
