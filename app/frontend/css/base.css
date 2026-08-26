@@ -676,6 +676,18 @@
       box-shadow: 0 0 0 4px rgba(49, 87, 213, .10);
     }
 
+    /* Chromium trên Windows có thể dùng nền trắng mặc định cho danh sách
+       option dù select đang ở dark theme, khiến chữ sáng gần như biến mất. */
+    select option {
+      background-color: var(--paper);
+      color: var(--ink);
+    }
+
+    select option:checked {
+      background-color: var(--brand);
+      color: #ffffff;
+    }
+
     .settings-grid {
       display: grid;
       grid-template-columns: 1fr 2fr 1fr;

@@ -25,8 +25,20 @@ function Get-DockerCommand {
 }
 
 function Test-DockerEngine([string]$DockerCommand) {
-    & $DockerCommand info *> $null
-    return $LASTEXITCODE -eq 0
+    # Docker CLI ghi lỗi ra stderr khi Desktop chưa chạy. Đây là trạng thái
+    # bình thường để script tiếp tục mở Docker, không phải lỗi cần dừng script.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        & $DockerCommand info *> $null
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
 try {
