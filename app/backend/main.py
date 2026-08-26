@@ -10,10 +10,11 @@ import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, HttpUrl
 
-from app import file_reader, masking, storage
-from app.config import settings
+from app.backend import file_reader, masking, storage
+from app.backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-WEB_DIR = Path(__file__).resolve().parent
+APP_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = APP_DIR / "frontend"
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
 # ---------------------------------------------------------------------------
@@ -142,9 +145,9 @@ async def require_database() -> None:
 # ---------------------------------------------------------------------------
 @app.get("/", include_in_schema=False)
 async def web_interface():
-    """Giao diện web đơn giản để sử dụng các chức năng mask/unmask."""
+    """Giao diện chat bảo mật với Public LLM."""
     return FileResponse(
-        WEB_DIR / "web.html",
+        FRONTEND_DIR / "index.html",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
     )
 
@@ -350,7 +353,7 @@ async def process_endpoint(req: ProcessRequest):
         raise HTTPException(status_code=502, detail=str(e)) from e
 
     # Bước 2: gọi Public LLM (import trễ để tránh lỗi nếu module chưa cấu hình xong)
-    from app.public_llm import call_public_llm
+    from app.backend.public_llm import call_public_llm
 
     try:
         public_response = await call_public_llm(
@@ -691,7 +694,7 @@ async def _run_chat(
     except masking.LocalLLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
-    from app.public_llm import call_public_llm
+    from app.backend.public_llm import call_public_llm
 
     await emit(
         "public_llm",

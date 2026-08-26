@@ -10,7 +10,7 @@ import asyncio
 
 import httpx
 
-from app.config import settings
+from app.backend.config import settings
 
 DEFAULT_SYSTEM_PROMPT = """Bạn là trợ lý AI hỗ trợ công việc. Một số thông tin nhạy cảm trong đoạn hội thoại đã được thay thế bằng các placeholder có định dạng [LOAI_DU_LIEU_SO_THU_TU], ví dụ: [TEN_CONG_TY_1], [SO_TIEN_1], [SO_DIEN_THOAI_1].
 

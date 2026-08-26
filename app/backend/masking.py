@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from app.config import settings
+from app.backend.config import settings
 
 # ---------------------------------------------------------------------------
 # In-memory session store cho mapping (placeholder -> giá trị thật)

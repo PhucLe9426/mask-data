@@ -11,7 +11,7 @@ from typing import Any
 
 import asyncpg
 
-from app.config import settings
+from app.backend.config import settings
 
 _pool: asyncpg.Pool | None = None
 _connect_lock = asyncio.Lock()

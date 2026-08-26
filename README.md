@@ -164,13 +164,13 @@ Chỉ dùng cách này khi muốn phát triển/debug ngoài Docker. PostgreSQL 
 
 ```powershell
 cd C:\Users\admin\Downloads\masking-app\masking-app
-.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8080
+.venv\Scripts\python.exe -m uvicorn app.backend.main:app --host 0.0.0.0 --port 8080
 ```
 
 ### Linux hoặc macOS
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8080
+uvicorn app.backend.main:app --host 0.0.0.0 --port 8080
 ```
 
 Sau khi server khởi động:
@@ -393,11 +393,16 @@ Kiểm tra API key, model, quyền truy cập và API URL của nhà cung cấp.
 ```text
 app/
 ├── __init__.py
-├── config.py       # Đọc cấu hình môi trường
-├── file_reader.py  # Trích xuất text cục bộ từ file upload
-├── main.py         # FastAPI endpoints
-├── masking.py      # Detect, mask, unmask và session mapping
-├── public_llm.py   # OpenAI-compatible, Anthropic và Gemini clients
-├── storage.py      # PostgreSQL pool, schema và CRUD hội thoại
-└── web.html        # Giao diện web
+├── backend/        # FastAPI và logic xử lý phía máy chủ
+│   ├── __init__.py
+│   ├── config.py       # Đọc cấu hình môi trường
+│   ├── file_reader.py  # Trích xuất text cục bộ từ file upload
+│   ├── main.py         # FastAPI endpoints
+│   ├── masking.py      # Detect, mask, unmask và session mapping
+│   ├── public_llm.py   # OpenAI-compatible, Anthropic và Gemini clients
+│   └── storage.py      # PostgreSQL pool, schema và CRUD hội thoại
+├── frontend/       # Giao diện web được chia theo trách nhiệm
+│   ├── index.html  # Cấu trúc trang
+│   ├── css/        # Base, layout và theme
+│   └── js/         # API, project, hội thoại và chat
 ```
