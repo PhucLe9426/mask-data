@@ -3,6 +3,7 @@ import re
 import time
 import unicodedata
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -97,7 +98,13 @@ def split_detection_text(text: str, max_chars: int) -> list[str]:
     return chunks
 
 
-async def detect_entities_chunked(text: str) -> list[dict[str, str]]:
+DetectionProgress = Callable[[int, int], Awaitable[None]]
+
+
+async def detect_entities_chunked(
+    text: str,
+    progress_callback: DetectionProgress | None = None,
+) -> list[dict[str, str]]:
     """Detect entities sequentially so long files do not overflow local LLM context."""
     chunks = split_detection_text(text, settings.LOCAL_LLM_CHUNK_CHARS)
     detected: list[dict[str, str]] = []
@@ -110,6 +117,8 @@ async def detect_entities_chunked(text: str) -> list[dict[str, str]]:
             raise LocalLLMError(
                 f"Local LLM không xử lý được phần {index}/{len(chunks)} của tài liệu: {exc}"
             ) from exc
+        if progress_callback:
+            await progress_callback(index, len(chunks))
     return detected
 
 
@@ -250,11 +259,15 @@ async def process_mask(
     text: str,
     known_entities: list[dict[str, str]] | None = None,
     detection_text: str | None = None,
+    progress_callback: DetectionProgress | None = None,
 ) -> dict[str, Any]:
     """Pipeline đầy đủ: detect -> mask -> lưu session -> trả về masked_text + session_id."""
     _cleanup_expired_sessions()
 
-    detected_entities = await detect_entities_chunked(detection_text or text)
+    detected_entities = await detect_entities_chunked(
+        detection_text or text,
+        progress_callback=progress_callback,
+    )
     entities = reconcile_entities(text, [*(known_entities or []), *detected_entities])
     masked_text, mapping = mask_text(text, entities)
 

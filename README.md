@@ -41,9 +41,13 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Chat trực tiếp với OpenAI-compatible, Anthropic và Google Gemini.
 - Che toàn bộ lịch sử trò chuyện trước khi gửi tới Public LLM.
 - Lưu, mở lại và xóa cuộc trò chuyện bằng PostgreSQL; API key không được lưu.
+- Tạo Project chứa nhiều cuộc trò chuyện, mô tả và bộ nhớ chung.
+- Tự lấy các tin nhắn liên quan và gần đây từ hội thoại khác trong cùng Project,
+  sau đó mask toàn bộ context trước khi gọi Public LLM.
 - Tự thử lại tối đa 3 lần khi Gemini gặp lỗi tạm thời `429`, `500`, `502`,
   `503` hoặc `504`.
 - Giao diện responsive, hỗ trợ sáng/tối và ghi nhớ theme trên trình duyệt.
+- Hiển thị tiến trình theo từng bước khi gửi tin nhắn hoặc xử lý file; có thể hủy yêu cầu đang chạy mà không lưu lượt chat dở dang.
 - Swagger UI để thử API trực tiếp.
 
 ## Yêu cầu
@@ -179,10 +183,11 @@ Mở giao diện, sau đó nhập API URL, model và API key. Key chỉ tồn t�
 nhập trên trang và được gửi tới backend cục bộ trong từng request; ứng dụng
 không ghi key vào file, PostgreSQL hoặc `localStorage`.
 
-Sidebar bên trái hiển thị các cuộc trò chuyện đã lưu. Nút **+ Mới** bắt đầu hội
-thoại mới; bấm vào một mục để tải lại lịch sử hoặc nút **×** để xóa. PostgreSQL
-lưu nội dung, provider, model, API URL và entity mapping để placeholder được
-khôi phục ổn định giữa nhiều lượt chat.
+Sidebar bên trái hiển thị các cuộc trò chuyện đã lưu và có thể đóng/mở bằng nút
+**☰**. Trên điện thoại, sidebar trượt từ cạnh trái và tự đóng sau khi chọn hội
+thoại. Nút **+ Mới** bắt đầu hội thoại mới; bấm vào một mục để tải lại lịch sử
+hoặc nút **×** để xóa. PostgreSQL lưu nội dung, provider, model, API URL và entity
+mapping để placeholder được khôi phục ổn định giữa nhiều lượt chat.
 
 ### Gửi file trong chat
 
@@ -203,6 +208,20 @@ tối đa 10 MB và nội dung trích xuất tối đa 200.000 ký tự. Nội d
 thành các đoạn 12.000 ký tự để local LLM phát hiện entity tuần tự trước khi gộp và
 mask toàn bộ tài liệu. Các ô gộp trong bảng Word chỉ được đọc một lần để tránh lặp
 nội dung. PDF scan không có lớp text chưa được hỗ trợ OCR.
+
+### Project và bộ nhớ liên hội thoại
+
+Nhấn nút **+** ở mục **Projects** trong sidebar để tạo Project. Mỗi Project có:
+
+- Tên và mô tả mục tiêu.
+- Ô **Thông tin cần ghi nhớ** dành cho quy ước, quyết định và yêu cầu dùng lâu dài.
+- Nhiều cuộc hội thoại riêng nhưng dùng chung bối cảnh Project.
+
+Khi gửi tin nhắn trong Project, backend kết hợp bộ nhớ cố định với tối đa 12 tin
+nhắn liên quan hoặc gần đây từ các hội thoại khác. Context dùng chung được giới
+hạn 30.000 ký tự, được local LLM phát hiện entity và mask cùng hội thoại hiện tại
+rồi mới gửi tới Public LLM. Chọn **Tất cả hội thoại** để chat ngoài Project và
+không dùng bộ nhớ chung.
 
 | Loại API | API URL mẫu | Model |
 | --- | --- | --- |
@@ -279,6 +298,7 @@ lấy lịch sử từ PostgreSQL, mask toàn bộ lịch sử rồi lưu cặp 
 ### `GET /conversations`
 
 Liệt kê các cuộc trò chuyện theo thời gian cập nhật gần nhất.
+Có thể truyền `project_id` để chỉ lấy hội thoại thuộc một Project.
 
 ### `GET /conversations/{conversation_id}`
 
@@ -287,6 +307,15 @@ Lấy cấu hình và toàn bộ tin nhắn của một cuộc trò chuyện.
 ### `DELETE /conversations/{conversation_id}`
 
 Xóa cuộc trò chuyện cùng các tin nhắn liên quan.
+
+### Project endpoints
+
+- `GET /projects`: liệt kê Project và số lượng hội thoại.
+- `POST /projects`: tạo Project.
+- `GET /projects/{project_id}`: lấy mô tả và bộ nhớ Project.
+- `PUT /projects/{project_id}`: cập nhật Project.
+- `DELETE /projects/{project_id}`: xóa Project; hội thoại vẫn được giữ và chuyển
+  thành hội thoại không thuộc Project.
 
 ### `POST /process`
 

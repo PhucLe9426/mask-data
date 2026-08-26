@@ -5,6 +5,7 @@ API keys are intentionally never accepted or stored by this module.
 
 import asyncio
 import json
+import re
 import uuid
 from typing import Any
 
@@ -17,8 +18,18 @@ _connect_lock = asyncio.Lock()
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY,
+    name VARCHAR(160) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    memory TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
     title VARCHAR(200) NOT NULL,
     provider VARCHAR(50) NOT NULL,
     model VARCHAR(200) NOT NULL,
@@ -26,6 +37,19 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE conversations
+    ADD COLUMN IF NOT EXISTS project_id UUID;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'conversations_project_id_fkey'
+    ) THEN
+        ALTER TABLE conversations
+            ADD CONSTRAINT conversations_project_id_fkey
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
@@ -50,6 +74,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
     ON messages(conversation_id, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_conversations_updated
     ON conversations(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_project_updated
+    ON conversations(project_id, updated_at DESC);
 """
 
 
@@ -96,9 +122,83 @@ def _record_to_dict(record: asyncpg.Record) -> dict[str, Any]:
         result["id"] = str(result["id"])
     if "conversation_id" in result:
         result["conversation_id"] = str(result["conversation_id"])
+    if result.get("project_id") is not None:
+        result["project_id"] = str(result["project_id"])
     if isinstance(result.get("entities"), str):
         result["entities"] = json.loads(result["entities"])
     return result
+
+
+async def create_project(name: str, description: str = "", memory: str = "") -> dict[str, Any]:
+    project_id = uuid.uuid4()
+    row = await _get_pool().fetchrow(
+        """
+        INSERT INTO projects (id, name, description, memory)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        """,
+        project_id,
+        name.strip()[:160],
+        description.strip()[:4000],
+        memory.strip()[:20000],
+    )
+    return _record_to_dict(row)
+
+
+async def list_projects() -> list[dict[str, Any]]:
+    rows = await _get_pool().fetch(
+        """
+        SELECT p.*, COUNT(c.id)::INTEGER AS conversation_count
+        FROM projects AS p
+        LEFT JOIN conversations AS c ON c.project_id = p.id
+        GROUP BY p.id
+        ORDER BY p.updated_at DESC, p.name
+        """
+    )
+    return [_record_to_dict(row) for row in rows]
+
+
+async def get_project(project_id: str) -> dict[str, Any] | None:
+    try:
+        parsed_id = uuid.UUID(project_id)
+    except ValueError:
+        return None
+    row = await _get_pool().fetchrow("SELECT * FROM projects WHERE id = $1", parsed_id)
+    return _record_to_dict(row) if row else None
+
+
+async def update_project(
+    project_id: str,
+    name: str,
+    description: str = "",
+    memory: str = "",
+) -> dict[str, Any] | None:
+    try:
+        parsed_id = uuid.UUID(project_id)
+    except ValueError:
+        return None
+    row = await _get_pool().fetchrow(
+        """
+        UPDATE projects
+        SET name = $2, description = $3, memory = $4, updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        """,
+        parsed_id,
+        name.strip()[:160],
+        description.strip()[:4000],
+        memory.strip()[:20000],
+    )
+    return _record_to_dict(row) if row else None
+
+
+async def delete_project(project_id: str) -> bool:
+    try:
+        parsed_id = uuid.UUID(project_id)
+    except ValueError:
+        return False
+    status = await _get_pool().execute("DELETE FROM projects WHERE id = $1", parsed_id)
+    return status == "DELETE 1"
 
 
 async def create_conversation(
@@ -106,12 +206,14 @@ async def create_conversation(
     provider: str,
     model: str,
     api_url: str,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     conversation_id = uuid.uuid4()
+    parsed_project_id = uuid.UUID(project_id) if project_id else None
     row = await _get_pool().fetchrow(
         """
-        INSERT INTO conversations (id, title, provider, model, api_url)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO conversations (id, title, provider, model, api_url, project_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
         """,
         conversation_id,
@@ -119,11 +221,17 @@ async def create_conversation(
         provider,
         model,
         api_url,
+        parsed_project_id,
     )
     return _record_to_dict(row)
 
 
-async def list_conversations() -> list[dict[str, Any]]:
+async def list_conversations(
+    project_id: str | None = None,
+    *,
+    unassigned_only: bool = False,
+) -> list[dict[str, Any]]:
+    parsed_project_id = uuid.UUID(project_id) if project_id else None
     rows = await _get_pool().fetch(
         """
         SELECT
@@ -132,6 +240,7 @@ async def list_conversations() -> list[dict[str, Any]]:
             c.provider,
             c.model,
             c.api_url,
+            c.project_id,
             c.created_at,
             c.updated_at,
             COUNT(m.id)::INTEGER AS message_count,
@@ -144,11 +253,78 @@ async def list_conversations() -> list[dict[str, Any]]:
             ) AS last_message
         FROM conversations AS c
         LEFT JOIN messages AS m ON m.conversation_id = c.id
+        WHERE (
+            ($2::boolean AND c.project_id IS NULL)
+            OR (
+                NOT $2::boolean
+                AND ($1::uuid IS NULL OR c.project_id = $1)
+            )
+        )
         GROUP BY c.id
         ORDER BY c.updated_at DESC
-        """
+        """,
+        parsed_project_id,
+        unassigned_only,
     )
     return [_record_to_dict(row) for row in rows]
+
+
+async def get_project_context(
+    project_id: str,
+    *,
+    query: str,
+    exclude_conversation_id: str | None = None,
+    limit: int = 12,
+    max_chars: int = 30000,
+) -> list[dict[str, Any]]:
+    """Return relevant and recent messages from other conversations in a project."""
+    parsed_project_id = uuid.UUID(project_id)
+    parsed_excluded_id = uuid.UUID(exclude_conversation_id) if exclude_conversation_id else None
+    rows = await _get_pool().fetch(
+        """
+        SELECT m.id, m.conversation_id, m.role, m.content, m.entities,
+               m.attachment_name, m.attachment_text, m.created_at, c.title
+        FROM messages AS m
+        JOIN conversations AS c ON c.id = m.conversation_id
+        WHERE c.project_id = $1
+          AND ($2::uuid IS NULL OR c.id <> $2)
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT 100
+        """,
+        parsed_project_id,
+        parsed_excluded_id,
+    )
+
+    terms = list(dict.fromkeys(re.findall(r"\w{3,}", query.casefold())))[:10]
+    ranked: list[tuple[int, int, dict[str, Any]]] = []
+    for position, row in enumerate(rows):
+        item = _record_to_dict(row)
+        haystack = f"{item['content']} {item.get('attachment_text') or ''}".casefold()
+        score = sum(1 for term in terms if term in haystack)
+        ranked.append((score, -position, item))
+
+    relevant = [item for score, _, item in sorted(ranked, reverse=True) if score > 0][:8]
+    chosen_ids = {item["id"] for item in relevant}
+    for _, _, item in ranked:
+        if len(relevant) >= limit:
+            break
+        if item["id"] not in chosen_ids:
+            relevant.append(item)
+            chosen_ids.add(item["id"])
+
+    selected: list[dict[str, Any]] = []
+    used_chars = 0
+    for item in sorted(relevant, key=lambda value: (value["created_at"], value["id"])):
+        attachment_text = item.get("attachment_text") or ""
+        if attachment_text:
+            attachment_text = attachment_text[:4000]
+        item["attachment_text"] = attachment_text
+        item_size = len(item["content"]) + len(attachment_text)
+        if selected and used_chars + item_size > max_chars:
+            continue
+        selected.append(item)
+        used_chars += item_size
+    return selected
 
 
 async def get_conversation(
@@ -240,6 +416,14 @@ async def add_exchange(
             )
             await connection.execute(
                 "UPDATE conversations SET updated_at = NOW() WHERE id = $1",
+                parsed_id,
+            )
+            await connection.execute(
+                """
+                UPDATE projects
+                SET updated_at = NOW()
+                WHERE id = (SELECT project_id FROM conversations WHERE id = $1)
+                """,
                 parsed_id,
             )
 

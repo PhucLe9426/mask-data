@@ -15,46 +15,52 @@
   <style>
     :root {
       color-scheme: light;
-      --ink: #18212f;
-      --muted: #687386;
-      --line: #dfe5ec;
+      --ink: #172033;
+      --muted: #6f7d92;
+      --line: #dce3ee;
       --paper: #ffffff;
-      --soft: #f4f7fa;
-      --brand: #3157d5;
-      --brand-dark: #2445b5;
+      --soft: #f5f7fb;
+      --brand: #526ff2;
+      --brand-dark: #405bd2;
       --good: #14835f;
       --bad: #c0394b;
       --shadow: 0 18px 50px rgba(20, 31, 56, .10);
-      --page-start: #f8fafc;
-      --page-end: #eef2f7;
-      --glow: rgba(49, 87, 213, .13);
-      --card: rgba(255,255,255,.94);
-      --glass: rgba(255,255,255,.75);
-      --input: #fbfcfe;
-      --chip-bg: #eef2ff;
-      --chip-ink: #304aa8;
+      --page-start: #f7f9fd;
+      --page-end: #edf2f9;
+      --glow: rgba(82, 111, 242, .12);
+      --card: rgba(255,255,255,.96);
+      --glass: rgba(255,255,255,.82);
+      --input: #fbfcff;
+      --chip-bg: #edf1ff;
+      --chip-ink: #4058bd;
+      --sidebar: #f5f7fb;
+      --panel: #ffffff;
+      --hover: rgba(82,111,242,.07);
     }
 
     :root[data-theme="dark"] {
       color-scheme: dark;
-      --ink: #e7edf7;
-      --muted: #9aa8bc;
-      --line: #303c50;
-      --paper: #182234;
-      --soft: #111a29;
-      --brand: #6685ff;
-      --brand-dark: #7893ff;
+      --ink: #edf2fb;
+      --muted: #91a0b8;
+      --line: #29364a;
+      --paper: #172235;
+      --soft: #101a2a;
+      --brand: #6f8cff;
+      --brand-dark: #829aff;
       --good: #47c99a;
       --bad: #ff7b8c;
       --shadow: 0 20px 60px rgba(0, 0, 0, .32);
-      --page-start: #101827;
-      --page-end: #080e18;
-      --glow: rgba(81, 111, 232, .18);
-      --card: rgba(24,34,52,.96);
-      --glass: rgba(24,34,52,.82);
-      --input: #101927;
-      --chip-bg: #26365f;
-      --chip-ink: #b9c7ff;
+      --page-start: #111b2e;
+      --page-end: #080f1c;
+      --glow: rgba(92, 120, 238, .16);
+      --card: rgba(20,30,48,.97);
+      --glass: rgba(20,31,49,.84);
+      --input: #0f1929;
+      --chip-bg: #263861;
+      --chip-ink: #c1ceff;
+      --sidebar: #0e1827;
+      --panel: #172235;
+      --hover: rgba(111,140,255,.09);
     }
 
     * { box-sizing: border-box; }
@@ -70,8 +76,9 @@
       transition: background .25s ease, color .25s ease;
     }
 
-    .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 48px; }
+    .shell { width: min(1480px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 48px; }
     header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+    .header-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
     .brand { display: flex; align-items: center; gap: 13px; }
     .logo { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--brand); color: white; font-size: 22px; box-shadow: 0 8px 20px rgba(49, 87, 213, .25); }
     h1 { margin: 0; font-size: clamp(21px, 3vw, 28px); letter-spacing: -.5px; }
@@ -81,16 +88,52 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #aab2bf; }
     .status.online .dot { background: #20b584; box-shadow: 0 0 0 4px rgba(32,181,132,.12); }
     .status.warning .dot { background: #e69b22; box-shadow: 0 0 0 4px rgba(230,155,34,.12); }
-    .theme-toggle { display: grid; place-items: center; width: 39px; height: 39px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--glass); color: var(--ink); font-size: 18px; cursor: pointer; transition: transform .2s, background .2s; }
+    .theme-toggle, .sidebar-toggle, .mobile-sidebar-toggle { display: grid; place-items: center; width: 39px; height: 39px; flex: 0 0 auto; padding: 0; border: 1px solid var(--line); background: var(--glass); color: var(--ink); font-size: 18px; cursor: pointer; transition: transform .2s, background .2s, border-color .2s; }
+    .theme-toggle { border-radius: 50%; }
+    .sidebar-toggle, .mobile-sidebar-toggle { border-radius: 10px; }
+    .sidebar-toggle { width: 32px; height: 32px; font-size: 16px; }
+    .mobile-sidebar-toggle { display: none; }
     .theme-toggle:hover { transform: translateY(-1px) rotate(8deg); background: var(--paper); }
+    .sidebar-toggle:hover { transform: translateY(-1px); border-color: var(--brand); background: var(--paper); color: var(--brand); }
 
-    .card { overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: var(--shadow); }
-    .app-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 690px; }
-    .conversation-sidebar { min-width: 0; padding: 18px 14px; border-right: 1px solid var(--line); background: var(--soft); }
+    .card { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: var(--shadow); }
+    .app-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 690px; transition: grid-template-columns .25s ease; }
+    .card.sidebar-collapsed .app-layout { grid-template-columns: 56px minmax(0, 1fr); }
+    .conversation-sidebar { width: 100%; min-width: 0; overflow: hidden; padding: 18px 14px; border-right: 1px solid var(--line); background: var(--soft); opacity: 1; transition: padding .25s ease, border-color .25s ease, opacity .18s ease, transform .25s ease; }
+    .card.sidebar-collapsed .conversation-sidebar { padding-right: 10px; padding-left: 10px; opacity: 1; transform: none; pointer-events: auto; }
     .sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; padding: 0 4px; }
     .sidebar-head h2 { margin: 0; font-size: 15px; }
+    .sidebar-head-actions { display: flex; align-items: center; gap: 6px; }
+    .card.sidebar-collapsed .sidebar-head { justify-content: center; padding: 0; }
+    .card.sidebar-collapsed .sidebar-head h2,
+    .card.sidebar-collapsed .project-section,
+    .card.sidebar-collapsed .conversation-section-label,
+    .card.sidebar-collapsed .conversation-list { display: none; }
+    .card.sidebar-collapsed .sidebar-head-actions { flex-direction: column; }
+    .card.sidebar-collapsed .new-chat-btn { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; font-size: 0; }
+    .card.sidebar-collapsed .new-chat-btn::before { content: "+"; font-size: 21px; font-weight: 500; line-height: 1; }
+    .collapsed-projects-btn { display: none; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--muted); cursor: pointer; }
+    .collapsed-projects-btn svg { width: 17px; height: 17px; }
+    .collapsed-projects-btn:hover { border-color: var(--brand); color: var(--brand); }
+    .card.sidebar-collapsed .collapsed-projects-btn { display: grid; place-items: center; }
+    .sidebar-close { display: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: 22px/1 inherit; cursor: pointer; }
+    .sidebar-close:hover { background: var(--paper); color: var(--ink); }
     .new-chat-btn { border: 0; border-radius: 9px; padding: 8px 10px; background: var(--brand); color: white; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .conversation-list { display: grid; gap: 7px; max-height: 620px; overflow-y: auto; }
+    .project-section { margin-bottom: 15px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 0 4px; }
+    .section-heading span, .conversation-section-label { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .project-add { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: 18px/1 inherit; cursor: pointer; }
+    .project-add:hover { border-color: var(--brand); color: var(--brand); }
+    .project-list { display: grid; gap: 4px; max-height: 190px; overflow-y: auto; }
+    .project-item { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px; border: 1px solid transparent; border-radius: 10px; padding: 4px; }
+    .project-item:hover, .project-item.active { border-color: var(--line); background: var(--paper); }
+    .project-open { min-width: 0; border: 0; padding: 6px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+    .project-name { display: block; overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .project-count { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .project-edit { border: 0; border-radius: 7px; padding: 5px 7px; background: transparent; color: var(--muted); cursor: pointer; }
+    .project-edit:hover { background: var(--soft); color: var(--brand); }
+    .conversation-section-label { display: block; margin: 0 4px 8px; }
+    .conversation-list { display: grid; gap: 7px; max-height: 390px; overflow-y: auto; }
     .conversation-empty { padding: 22px 10px; color: var(--muted); font-size: 13px; line-height: 1.5; text-align: center; }
     .conversation-item { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 5px; border: 1px solid transparent; border-radius: 11px; padding: 5px; }
     .conversation-item:hover, .conversation-item.active { border-color: var(--line); background: var(--paper); }
@@ -102,8 +145,10 @@
     .panel { display: none; padding: clamp(20px, 4vw, 32px); }
     .panel.active { display: block; }
     .chat-heading { margin-bottom: 22px; }
+    .chat-heading-row { display: flex; align-items: flex-start; gap: 10px; }
     .chat-heading h2 { margin: 0 0 5px; font-size: 21px; }
     .chat-heading p { margin: 0; color: var(--muted); font-size: 14px; }
+    .project-context-badge { display: inline-flex; margin-top: 8px; padding: 4px 8px; border-radius: 999px; background: var(--chip-bg); color: var(--chip-ink); font-size: 11px; font-weight: 700; }
     label { display: block; margin-bottom: 9px; font-size: 14px; font-weight: 700; }
     textarea {
       width: 100%; min-height: 245px; resize: vertical; border: 1px solid var(--line); border-radius: 13px;
@@ -125,7 +170,7 @@
     .bubble.user { margin-left: auto; border-bottom-right-radius: 4px; background: var(--brand); color: white; }
     .bubble.assistant { border: 1px solid var(--line); border-bottom-left-radius: 4px; background: var(--paper); }
     .bubble-attachment { margin-bottom: 6px; font-size: 12px; font-weight: 700; opacity: .85; }
-    .chat-compose { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; align-items: end; }
+    .chat-compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 14px; align-items: start; }
     .compose-main { min-width: 0; }
     .chat-compose textarea { min-height: 76px; height: 76px; }
     .chat-compose .primary { height: 44px; margin-bottom: 1px; }
@@ -136,6 +181,12 @@
     .selected-file { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
     .file-remove { display: none; width: 28px; height: 28px; padding: 0; color: var(--bad); }
     .privacy { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--good); font-size: 12px; }
+    .chat-progress { display: grid; gap: 9px; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--soft); }
+    .chat-progress[hidden] { display: none; }
+    .progress-copy { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; }
+    .progress-percent { color: var(--brand); font-weight: 800; font-variant-numeric: tabular-nums; }
+    .progress-track { height: 7px; overflow: hidden; border-radius: 999px; background: var(--line); }
+    .progress-bar { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #7a91f7); transition: width .25s ease; }
     button.primary { border: 0; border-radius: 11px; padding: 11px 17px; font: inherit; font-weight: 700; cursor: pointer; transition: .18s ease; }
     button.primary { background: var(--brand); color: white; box-shadow: 0 7px 16px rgba(49,87,213,.22); }
     button.primary:hover { background: var(--brand-dark); transform: translateY(-1px); }
@@ -143,18 +194,159 @@
     .message { min-height: 20px; margin-top: 12px; font-size: 14px; color: var(--muted); }
     .message.error { color: var(--bad); }
     .message.success { color: var(--good); }
+    .sidebar-backdrop { display: none; }
+    dialog { width: min(520px, calc(100% - 28px)); padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
+    dialog::backdrop { background: rgba(4,9,17,.62); backdrop-filter: blur(3px); }
+    .project-dialog-form { padding: 22px; }
+    .project-dialog-form h2 { margin: 0 0 18px; font-size: 20px; }
+    .project-dialog-form .dialog-field { margin-bottom: 14px; }
+    .project-dialog-form textarea { min-height: 90px; height: 90px; font-family: inherit; }
+    .project-dialog-form textarea.project-memory { min-height: 135px; height: 135px; }
+    .dialog-note { margin: -5px 0 15px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .dialog-actions button { border: 1px solid var(--line); border-radius: 9px; padding: 9px 13px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+    .dialog-actions .dialog-delete { margin-right: auto; color: var(--bad); }
+    .dialog-actions .dialog-save { border-color: var(--brand); background: var(--brand); color: white; }
+
+    /* Polished application layout */
+    body {
+      background:
+        radial-gradient(circle at 8% 0%, var(--glow), transparent 34rem),
+        radial-gradient(circle at 92% 12%, rgba(82,111,242,.06), transparent 30rem),
+        linear-gradient(145deg, var(--page-start), var(--page-end));
+    }
+    .shell { padding-top: 22px; padding-bottom: 28px; }
+    header { min-height: 58px; margin-bottom: 16px; padding: 0 6px; }
+    .brand { gap: 12px; }
+    .logo {
+      width: 46px; height: 46px; border-radius: 15px;
+      background: linear-gradient(145deg, #7891ff, #4e68e5);
+      box-shadow: 0 10px 28px rgba(66,91,210,.30), inset 0 1px rgba(255,255,255,.28);
+    }
+    h1 { font-size: clamp(23px, 2.4vw, 30px); letter-spacing: -.75px; }
+    .subtitle { margin-top: 2px; font-size: 13px; }
+    .header-actions { gap: 8px; }
+    .status { min-height: 40px; padding: 8px 13px; border-color: color-mix(in srgb, var(--line) 82%, transparent); box-shadow: 0 5px 18px rgba(10,22,43,.05); }
+    .theme-toggle { width: 40px; height: 40px; box-shadow: 0 5px 18px rgba(10,22,43,.05); }
+    .card {
+      min-height: calc(100vh - 122px); border-color: color-mix(in srgb, var(--line) 88%, transparent);
+      border-radius: 23px; background: var(--card); box-shadow: 0 24px 70px rgba(10,22,43,.13);
+    }
+    .app-layout { grid-template-columns: 288px minmax(0,1fr); min-height: calc(100vh - 122px); }
+    .card.sidebar-collapsed .app-layout { grid-template-columns: 58px minmax(0,1fr); }
+    .conversation-sidebar { padding: 20px 15px; background: var(--sidebar); }
+    .sidebar-head { margin-bottom: 16px; }
+    .sidebar-head h2 { font-size: 14px; letter-spacing: -.1px; }
+    .sidebar-toggle, .collapsed-projects-btn { background: color-mix(in srgb, var(--paper) 86%, transparent); }
+    .new-chat-btn { background: linear-gradient(135deg, var(--brand), #6984f5); box-shadow: 0 7px 16px rgba(76,101,220,.22); }
+    .project-section { margin-bottom: 17px; padding-bottom: 16px; }
+    .project-item, .conversation-item { transition: background .16s ease, border-color .16s ease, transform .16s ease; }
+    .project-item:hover, .conversation-item:hover { background: var(--hover); transform: translateX(1px); }
+    .project-item.active, .conversation-item.active { border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); background: var(--hover); }
+    .project-open, .conversation-open { border-radius: 8px; }
+    .project-name, .conversation-title { font-weight: 680; }
+    .conversation-list, .project-list, .chat-box { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
+    .conversation-list::-webkit-scrollbar, .project-list::-webkit-scrollbar, .chat-box::-webkit-scrollbar { width: 7px; }
+    .conversation-list::-webkit-scrollbar-thumb, .project-list::-webkit-scrollbar-thumb, .chat-box::-webkit-scrollbar-thumb { border-radius: 10px; background: color-mix(in srgb, var(--muted) 38%, transparent); }
+    .panel { min-width: 0; padding: clamp(24px, 3vw, 42px); background: var(--panel); }
+    .panel.active { animation: panel-in .28s ease both; }
+    @keyframes panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .chat-heading { margin-bottom: 20px; }
+    .chat-heading h2 { margin-bottom: 4px; font-size: clamp(22px, 2.2vw, 28px); letter-spacing: -.55px; }
+    .chat-heading p { font-size: 13px; }
+    .project-context-badge { margin-top: 9px; padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent); }
+    .api-config {
+      margin-bottom: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 17px;
+      background: color-mix(in srgb, var(--soft) 74%, transparent); box-shadow: inset 0 1px rgba(255,255,255,.04);
+    }
+    .api-config-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    .api-config-head > div { display: grid; gap: 2px; }
+    .api-config-eyebrow { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .api-config-head strong { font-size: 15px; }
+    .secure-chip { padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--good) 25%, var(--line)); border-radius: 999px; color: var(--good); font-size: 10px; font-weight: 750; }
+    .settings-grid { gap: 13px; margin-bottom: 0; }
+    label { margin-bottom: 7px; font-size: 12px; }
+    input, select { height: 46px; border-radius: 12px; transition: border-color .18s, box-shadow .18s, background .18s; }
+    input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); }
+    .field-note { margin-top: 8px; font-size: 11px; }
+    .chat-box {
+      height: clamp(390px, 48vh, 610px); padding: clamp(16px, 2vw, 24px); border-radius: 18px;
+      background: color-mix(in srgb, var(--soft) 88%, var(--panel)); box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    .chat-empty { align-content: center; gap: 10px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+    .chat-empty::before {
+      content: "◇"; display: grid; place-items: center; width: 42px; height: 42px; margin: 0 auto 2px;
+      border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line)); border-radius: 14px;
+      background: var(--chip-bg); color: var(--brand); font-size: 21px; box-shadow: 0 8px 22px rgba(63,87,195,.12);
+    }
+    .bubble { max-width: min(76%, 820px); margin-bottom: 14px; padding: 12px 15px; border-radius: 16px; box-shadow: 0 5px 16px rgba(8,18,36,.06); }
+    .bubble.user { border-bottom-right-radius: 5px; background: linear-gradient(135deg, var(--brand), #647ff1); }
+    .bubble.assistant { border-bottom-left-radius: 5px; }
+    .chat-compose { gap: 12px; margin-top: 14px; }
+    .chat-compose textarea { min-height: 88px; height: 88px; border-radius: 16px; padding: 14px 16px; background: var(--input); font-family: inherit; line-height: 1.5; }
+    .chat-compose .primary { min-width: 132px; height: 48px; border-radius: 13px; margin-bottom: 2px; background: linear-gradient(135deg, var(--brand), #6984f5); }
+    .chat-compose .send-action { display: grid; place-items: center; width: 48px; min-width: 48px; margin-top: 20px; margin-bottom: 0; padding: 0; border-radius: 50%; background: var(--ink); color: var(--paper); box-shadow: 0 7px 18px rgba(0,0,0,.2); }
+    .chat-compose .send-action:hover { background: var(--ink); transform: translateY(-1px) scale(1.03); }
+    .send-action svg { width: 21px; height: 21px; }
+    .send-action .stop-icon { display: none; }
+    .send-action.running .send-icon { display: none; }
+    .send-action.running .stop-icon { display: block; }
+    .file-controls { min-height: 36px; margin-top: 6px; }
+    .attach-button { border-radius: 10px; padding: 8px 11px; }
+    .privacy { margin-top: 8px; font-size: 11px; }
+    .message { margin-top: 8px; font-size: 12px; }
+    dialog { border-radius: 20px; }
+    .project-dialog-form { padding: 26px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+
+    @media (min-width: 761px) and (max-width: 1050px) {
+      .settings-grid { grid-template-columns: 1fr 1fr; }
+      .field-key { grid-column: span 2; }
+      .app-layout { grid-template-columns: 260px minmax(0,1fr); }
+      .card.sidebar-collapsed .app-layout { grid-template-columns: 58px minmax(0,1fr); }
+      .panel { padding: 26px; }
+    }
 
     @media (max-width: 760px) {
-      .shell { width: min(100% - 20px, 1120px); padding-top: 20px; }
+      .shell { width: calc(100% - 18px); padding-top: 12px; padding-bottom: 14px; }
       header { align-items: flex-start; }
+      header { min-height: 50px; margin-bottom: 10px; padding: 0 2px; }
+      .logo { width: 40px; height: 40px; border-radius: 13px; }
+      h1 { font-size: 21px; }
       .subtitle { display: none; }
       .settings-grid { grid-template-columns: 1fr; }
       .field-key { grid-column: auto; }
-      .app-layout { grid-template-columns: 1fr; }
-      .conversation-sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
-      .conversation-list { display: flex; max-height: 150px; overflow-x: auto; }
-      .conversation-item { min-width: 210px; }
-      .chat-compose { grid-template-columns: 1fr; }
+      .app-layout, .card.sidebar-collapsed .app-layout { display: block; }
+      .conversation-sidebar, .card.sidebar-collapsed .conversation-sidebar {
+        position: fixed; z-index: 100; inset: 0 auto 0 0; width: min(84vw, 310px); overflow-y: auto;
+        padding: 20px 14px; border: 0; border-right: 1px solid var(--line); background: var(--soft);
+        box-shadow: 20px 0 50px rgba(0,0,0,.22); transition: transform .25s ease, opacity .2s ease, visibility .25s;
+      }
+      .conversation-sidebar { opacity: 1; visibility: visible; transform: translateX(0); pointer-events: auto; }
+      .card.sidebar-collapsed .conversation-sidebar { opacity: 0; visibility: hidden; transform: translateX(-100%); pointer-events: none; }
+      .card.sidebar-collapsed .sidebar-head { justify-content: space-between; padding: 0 4px; }
+      .card.sidebar-collapsed .sidebar-head h2 { display: block; }
+      .card.sidebar-collapsed .new-chat-btn { display: inline-block; }
+      .card.sidebar-collapsed .collapsed-projects-btn { display: none; }
+      .sidebar-close { display: block; }
+      .mobile-sidebar-toggle { display: grid; }
+      .conversation-list { display: grid; max-height: none; overflow: visible; }
+      .sidebar-backdrop { position: fixed; z-index: 90; inset: 0; display: block; border: 0; background: rgba(4,9,17,.55); opacity: 1; transition: opacity .2s ease; }
+      .card.sidebar-collapsed .sidebar-backdrop { opacity: 0; pointer-events: none; }
+      body.sidebar-open-mobile { overflow: hidden; }
+      .card { min-height: calc(100vh - 82px); border-radius: 18px; }
+      .panel { min-height: calc(100vh - 82px); padding: 20px 15px; }
+      .chat-heading { margin-bottom: 16px; }
+      .chat-heading h2 { font-size: 21px; }
+      .api-config { padding: 14px; border-radius: 15px; }
+      .api-config-head { align-items: flex-start; margin-bottom: 14px; }
+      .secure-chip { max-width: 128px; text-align: center; }
+      .chat-box { height: max(360px, 47vh); padding: 14px; border-radius: 15px; }
+      .bubble { max-width: 90%; }
+      .chat-compose { grid-template-columns: minmax(0, 1fr) auto; }
+      .chat-compose .primary { width: 48px; }
       textarea { min-height: 190px; }
       .status span:last-child { display: none; }
       .header-actions { gap: 6px; }
@@ -164,11 +356,13 @@
 <body>
   <main class="shell">
     <header>
-      <div class="brand">
-        <div class="logo">◈</div>
-        <div>
-          <h1>Data Masking</h1>
-          <p class="subtitle">Ẩn dữ liệu nhạy cảm trước khi gửi tới AI công khai</p>
+      <div class="header-main">
+        <div class="brand">
+          <div class="logo">◈</div>
+          <div>
+            <h1>Data Masking</h1>
+            <p class="subtitle">Ẩn dữ liệu nhạy cảm trước khi gửi tới AI công khai</p>
+          </div>
         </div>
       </div>
       <div class="header-actions">
@@ -177,24 +371,54 @@
       </div>
     </header>
 
-    <section class="card">
+    <section id="app-card" class="card">
       <div class="app-layout">
-        <aside class="conversation-sidebar">
+        <aside id="conversation-sidebar" class="conversation-sidebar">
           <div class="sidebar-head">
-            <h2>Cuộc trò chuyện</h2>
-            <button id="new-chat" class="new-chat-btn" type="button">+ Mới</button>
+            <h2>Lịch sử trò chuyện</h2>
+            <div class="sidebar-head-actions">
+              <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-controls="conversation-sidebar" aria-expanded="true" title="Đóng lịch sử">☰</button>
+              <button id="new-chat" class="new-chat-btn" type="button" title="Tạo cuộc trò chuyện mới">+ Mới</button>
+              <button id="collapsed-projects" class="collapsed-projects-btn" type="button" title="Mở Projects" aria-label="Mở Projects">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3.5 7.5h6l2-2h3.2a2 2 0 0 1 2 2v1"></path>
+                  <path d="M3.5 7.5h14.8a2 2 0 0 1 1.9 2.6l-2.3 7a2 2 0 0 1-1.9 1.4H5.5a2 2 0 0 1-2-2z"></path>
+                </svg>
+              </button>
+              <button id="sidebar-close" class="sidebar-close" type="button" aria-label="Đóng lịch sử">×</button>
+            </div>
           </div>
+          <div id="project-section" class="project-section">
+            <div class="section-heading">
+              <span>Projects</span>
+              <button id="new-project" class="project-add" type="button" title="Tạo Project">+</button>
+            </div>
+            <div id="project-list" class="project-list"></div>
+          </div>
+          <span id="conversation-section-label" class="conversation-section-label">Hội thoại riêng</span>
           <div id="conversation-list" class="conversation-list">
             <div class="conversation-empty">Chưa có cuộc trò chuyện.</div>
           </div>
         </aside>
 
         <section id="chat-panel" class="panel active">
-        <div class="chat-heading">
-          <h2>Chat bảo mật với Public LLM</h2>
-          <p>Dữ liệu nhạy cảm được xử lý cục bộ trước khi nội dung rời khỏi máy.</p>
+        <div class="chat-heading chat-heading-row">
+          <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" type="button" aria-controls="conversation-sidebar" aria-expanded="false" title="Mở lịch sử">☰</button>
+          <div>
+            <h2>Chat bảo mật với Public LLM</h2>
+            <p>Dữ liệu nhạy cảm được xử lý cục bộ trước khi nội dung rời khỏi máy.</p>
+            <span id="project-context-badge" class="project-context-badge" hidden></span>
+          </div>
         </div>
-        <div class="settings-grid">
+        <section class="api-config">
+          <div class="api-config-head">
+            <div>
+              <span class="api-config-eyebrow">Kết nối mô hình</span>
+              <strong>Cấu hình Public LLM</strong>
+            </div>
+            <span class="secure-chip">● Key không được lưu</span>
+          </div>
+          <div class="settings-grid">
           <div>
             <label for="provider">Loại API</label>
             <select id="provider">
@@ -216,7 +440,8 @@
             <input id="api-key" type="password" placeholder="Dán API key tại đây" autocomplete="off" spellcheck="false">
             <p class="field-note">Key chỉ nằm trong ô này và được gửi qua backend cục bộ cho từng tin nhắn; ứng dụng không lưu key.</p>
           </div>
-        </div>
+          </div>
+        </section>
 
         <div id="chat-box" class="chat-box">
           <div id="chat-empty" class="chat-empty">Nhập cấu hình API và bắt đầu trò chuyện.<br>Dữ liệu nhạy cảm sẽ được che trước khi rời khỏi máy.</div>
@@ -231,25 +456,234 @@
               <button id="remove-file" class="file-remove" type="button" aria-label="Bỏ file">×</button>
             </div>
           </div>
-          <button id="chat-send" class="primary">Gửi tin nhắn</button>
+          <button id="chat-send" class="primary send-action" type="button" aria-label="Gửi tin nhắn" title="Gửi tin nhắn">
+            <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 19V5"></path>
+              <path d="m6.5 10.5 5.5-5.5 5.5 5.5"></path>
+            </svg>
+            <svg class="stop-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="1.5"></rect>
+            </svg>
+          </button>
+        </div>
+        <div id="chat-progress" class="chat-progress" hidden aria-live="polite">
+          <div class="progress-copy">
+            <span id="progress-label">Đang chuẩn bị...</span>
+            <span id="progress-percent" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-track"><span id="progress-bar" class="progress-bar"></span></div>
         </div>
         <div class="privacy">● File được đọc cục bộ; Local LLM mask nội dung trước khi gọi Public LLM</div>
         <div id="chat-message" class="message"></div>
         </section>
       </div>
+      <button id="sidebar-backdrop" class="sidebar-backdrop" type="button" aria-label="Đóng lịch sử"></button>
     </section>
   </main>
+
+  <dialog id="project-dialog">
+    <form id="project-form" class="project-dialog-form">
+      <h2 id="project-dialog-title">Tạo Project</h2>
+      <div class="dialog-field">
+        <label for="project-name">Tên Project</label>
+        <input id="project-name" maxlength="160" required placeholder="Ví dụ: Tuyển dụng 2026">
+      </div>
+      <div class="dialog-field">
+        <label for="project-description">Mô tả / mục tiêu</label>
+        <textarea id="project-description" maxlength="4000" placeholder="Project này dùng để làm gì?"></textarea>
+      </div>
+      <div class="dialog-field">
+        <label for="project-memory">Thông tin cần ghi nhớ</label>
+        <textarea id="project-memory" class="project-memory" maxlength="20000" placeholder="Quy ước, quyết định, yêu cầu hoặc thông tin cần dùng xuyên suốt các hội thoại..."></textarea>
+      </div>
+      <p class="dialog-note">Backend sẽ kết hợp phần ghi nhớ này với các tin nhắn liên quan từ những hội thoại khác trong Project, rồi mask trước khi gọi Public LLM.</p>
+      <div class="dialog-actions">
+        <button id="delete-project" class="dialog-delete" type="button" hidden>Xóa Project</button>
+        <button id="cancel-project" type="button">Hủy</button>
+        <button class="dialog-save" type="submit">Lưu</button>
+      </div>
+    </form>
+  </dialog>
 
   <script>
     let conversationId = null;
     let selectedFile = null;
+    let currentProjectId = null;
+    let projects = [];
+    let editingProjectId = null;
+    let activeChatController = null;
     const $ = (id) => document.getElementById(id);
+    const sidebarMedia = window.matchMedia('(max-width: 760px)');
+
+    function savedSidebarCollapsed() {
+      try { return localStorage.getItem('masking-sidebar-collapsed') === 'true'; }
+      catch { return false; }
+    }
+
+    function setSidebarCollapsed(collapsed, remember = !sidebarMedia.matches) {
+      $('app-card').classList.toggle('sidebar-collapsed', collapsed);
+      $('sidebar-toggle').setAttribute('aria-expanded', String(!collapsed));
+      $('sidebar-toggle').title = collapsed ? 'Mở lịch sử' : 'Đóng lịch sử';
+      $('mobile-sidebar-toggle').setAttribute('aria-expanded', String(!collapsed));
+      $('mobile-sidebar-toggle').title = collapsed ? 'Mở lịch sử' : 'Đóng lịch sử';
+      document.body.classList.toggle('sidebar-open-mobile', sidebarMedia.matches && !collapsed);
+      if (remember) {
+        try { localStorage.setItem('masking-sidebar-collapsed', String(collapsed)); } catch {}
+      }
+    }
+
+    function initializeSidebar() {
+      setSidebarCollapsed(sidebarMedia.matches ? true : savedSidebarCollapsed(), false);
+    }
+
+    $('sidebar-toggle').addEventListener('click', () => {
+      setSidebarCollapsed(!$('app-card').classList.contains('sidebar-collapsed'));
+    });
+    $('collapsed-projects').addEventListener('click', () => {
+      setSidebarCollapsed(false);
+      requestAnimationFrame(() => $('project-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    });
+    $('mobile-sidebar-toggle').addEventListener('click', () => setSidebarCollapsed(false, false));
+    $('sidebar-close').addEventListener('click', () => setSidebarCollapsed(true, false));
+    $('sidebar-backdrop').addEventListener('click', () => setSidebarCollapsed(true, false));
+    sidebarMedia.addEventListener('change', (event) => {
+      setSidebarCollapsed(event.matches ? true : savedSidebarCollapsed(), false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && sidebarMedia.matches) setSidebarCollapsed(true, false);
+    });
 
     function message(id, text, kind = '') {
       const el = $(id);
       el.textContent = text;
       el.className = `message ${kind}`;
     }
+
+    function currentProject() {
+      return projects.find((project) => project.id === currentProjectId) || null;
+    }
+
+    function updateProjectIndicators() {
+      const project = currentProject();
+      $('conversation-section-label').textContent = project ? `Hội thoại · ${project.name}` : 'Hội thoại riêng';
+      $('project-context-badge').hidden = !project;
+      $('project-context-badge').textContent = project ? `◆ Project: ${project.name}` : '';
+      document.querySelectorAll('.project-item').forEach((item) => {
+        item.classList.toggle('active', (item.dataset.id || null) === currentProjectId);
+      });
+    }
+
+    function renderProjects() {
+      const list = $('project-list');
+      list.innerHTML = '';
+
+      const addProjectRow = (project) => {
+        const item = document.createElement('div');
+        item.className = 'project-item';
+        item.dataset.id = project?.id || '';
+
+        const openButton = document.createElement('button');
+        openButton.type = 'button';
+        openButton.className = 'project-open';
+        const name = document.createElement('span');
+        name.className = 'project-name';
+        name.textContent = project ? `◆ ${project.name}` : '◉ Tất cả hội thoại';
+        const count = document.createElement('span');
+        count.className = 'project-count';
+        count.textContent = project ? `${project.conversation_count || 0} hội thoại` : 'Không dùng bộ nhớ Project';
+        openButton.append(name, count);
+        openButton.addEventListener('click', () => selectProject(project?.id || null));
+        item.appendChild(openButton);
+
+        if (project) {
+          const editButton = document.createElement('button');
+          editButton.type = 'button';
+          editButton.className = 'project-edit';
+          editButton.textContent = '···';
+          editButton.title = 'Sửa Project và bộ nhớ';
+          editButton.addEventListener('click', () => openProjectDialog(project));
+          item.appendChild(editButton);
+        }
+        list.appendChild(item);
+      };
+
+      addProjectRow(null);
+      projects.forEach(addProjectRow);
+      updateProjectIndicators();
+    }
+
+    async function loadProjects() {
+      try {
+        const data = await fetchJson('/projects');
+        projects = data.projects;
+        if (currentProjectId && !projects.some((project) => project.id === currentProjectId)) {
+          currentProjectId = null;
+        }
+        renderProjects();
+      } catch (error) {
+        $('project-list').innerHTML = `<div class="conversation-empty"></div>`;
+        $('project-list').firstElementChild.textContent = error.message;
+      }
+    }
+
+    async function selectProject(projectId) {
+      currentProjectId = projectId;
+      resetChat();
+      updateProjectIndicators();
+      await loadConversations();
+    }
+
+    function openProjectDialog(project = null) {
+      editingProjectId = project?.id || null;
+      $('project-dialog-title').textContent = project ? 'Chỉnh sửa Project' : 'Tạo Project';
+      $('project-name').value = project?.name || '';
+      $('project-description').value = project?.description || '';
+      $('project-memory').value = project?.memory || '';
+      $('delete-project').hidden = !project;
+      $('project-dialog').showModal();
+      $('project-name').focus();
+    }
+
+    $('new-project').addEventListener('click', () => openProjectDialog());
+    $('cancel-project').addEventListener('click', () => $('project-dialog').close());
+    $('project-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = {
+        name: $('project-name').value.trim(),
+        description: $('project-description').value.trim(),
+        memory: $('project-memory').value.trim(),
+      };
+      if (!payload.name) return;
+      try {
+        const project = await fetchJson(editingProjectId ? `/projects/${editingProjectId}` : '/projects', {
+          method: editingProjectId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        currentProjectId = project.id;
+        $('project-dialog').close();
+        resetChat();
+        await loadProjects();
+        await loadConversations();
+        message('chat-message', 'Đã lưu Project và bộ nhớ dùng chung.', 'success');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+
+    $('delete-project').addEventListener('click', async () => {
+      if (!editingProjectId || !confirm('Xóa Project này? Các hội thoại sẽ được giữ lại nhưng không còn thuộc Project.')) return;
+      try {
+        await fetchJson(`/projects/${editingProjectId}`, { method: 'DELETE' });
+        if (currentProjectId === editingProjectId) currentProjectId = null;
+        $('project-dialog').close();
+        resetChat();
+        await loadProjects();
+        await loadConversations();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
 
     function updateThemeButton() {
       const isDark = document.documentElement.dataset.theme === 'dark';
@@ -271,6 +705,46 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || `Lỗi HTTP ${response.status}`);
       return data;
+    }
+
+    function updateChatProgress(event) {
+      const percent = Math.max(0, Math.min(100, Number(event.progress) || 0));
+      $('chat-progress').hidden = false;
+      $('progress-label').textContent = event.message || 'Đang xử lý...';
+      $('progress-percent').textContent = `${percent}%`;
+      $('progress-bar').style.width = `${percent}%`;
+    }
+
+    function hideChatProgress() {
+      $('chat-progress').hidden = true;
+      $('progress-bar').style.width = '0%';
+      $('progress-percent').textContent = '0%';
+    }
+
+    async function fetchChatStream(path, options, onEvent) {
+      const response = await fetch(path, { cache: 'no-store', ...options });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || `Lỗi HTTP ${response.status}`);
+      }
+      if (!response.body) throw new Error('Trình duyệt không hỗ trợ nhận tiến trình từ máy chủ.');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split('\n');
+        buffer = done ? '' : lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === 'error') throw new Error(event.message || 'Không thể xử lý tin nhắn.');
+          onEvent(event);
+        }
+        if (done) break;
+      }
     }
 
     async function api(path, body) {
@@ -319,6 +793,9 @@
       try {
         const conversation = await fetchJson(`/conversations/${id}`);
         conversationId = conversation.id;
+        currentProjectId = conversation.project_id || null;
+        await loadProjects();
+        await loadConversations();
         applyConversationConfig(conversation);
         $('chat-box').innerHTML = '';
         if (!conversation.messages.length) {
@@ -327,7 +804,9 @@
           conversation.messages.forEach((item) => addBubble(item.role, item.content, item.attachment_name));
         }
         document.querySelectorAll('.conversation-item').forEach((item) => item.classList.toggle('active', item.dataset.id === id));
-        message('chat-message', 'Đã tải lịch sử từ PostgreSQL.', 'success');
+        updateProjectIndicators();
+        message('chat-message', currentProjectId ? 'Đã tải hội thoại cùng bộ nhớ Project.' : 'Đã tải lịch sử từ PostgreSQL.', 'success');
+        if (sidebarMedia.matches) setSidebarCollapsed(true, false);
       } catch (error) {
         message('chat-message', error.message, 'error');
       }
@@ -339,6 +818,7 @@
         await fetchJson(`/conversations/${id}`, { method: 'DELETE' });
         if (conversationId === id) resetChat();
         await loadConversations();
+        await loadProjects();
       } catch (error) {
         message('chat-message', error.message, 'error');
       }
@@ -347,10 +827,13 @@
     async function loadConversations() {
       const list = $('conversation-list');
       try {
-        const data = await fetchJson('/conversations');
+        const path = currentProjectId
+          ? `/conversations?project_id=${encodeURIComponent(currentProjectId)}`
+          : '/conversations?unassigned_only=true';
+        const data = await fetchJson(path);
         list.innerHTML = '';
         if (!data.conversations.length) {
-          list.innerHTML = '<div class="conversation-empty">Chưa có cuộc trò chuyện.</div>';
+          list.innerHTML = `<div class="conversation-empty">${currentProjectId ? 'Project chưa có cuộc trò chuyện.' : 'Chưa có hội thoại riêng.'}</div>`;
           return;
         }
         data.conversations.forEach((conversation) => {
@@ -441,6 +924,10 @@
     });
 
     async function sendChat() {
+      if (activeChatController) {
+        activeChatController.abort();
+        return;
+      }
       const text = $('chat-input').value.trim();
       const apiKey = $('api-key').value.trim();
       const apiUrl = $('api-url').value.trim();
@@ -451,15 +938,22 @@
       const button = $('chat-send');
       const fileToSend = selectedFile;
       const displayText = text || 'Hãy đọc, phân tích và trả lời dựa trên nội dung tệp.';
-      button.disabled = true;
       $('attach-file').disabled = true;
-      button.textContent = 'Đang xử lý...';
-      message('chat-message', fileToSend ? 'Đang đọc file, mask dữ liệu và gọi Public LLM...' : 'Đang mask dữ liệu và gọi Public LLM...');
+      button.classList.add('running');
+      button.setAttribute('aria-label', 'Hủy xử lý');
+      button.title = 'Hủy xử lý';
+      activeChatController = new AbortController();
+      updateChatProgress({ progress: 1, message: fileToSend ? 'Đang tải file lên backend cục bộ...' : 'Đang gửi yêu cầu...' });
+      message('chat-message', 'Bạn có thể theo dõi tiến trình hoặc hủy yêu cầu đang chạy.');
       addBubble('user', displayText, fileToSend?.name);
       $('chat-input').value = '';
 
       try {
-        let result;
+        let result = null;
+        const handleEvent = (event) => {
+          if (event.type === 'progress') updateChatProgress(event);
+          if (event.type === 'result') result = event.data;
+        };
         if (fileToSend) {
           const formData = new FormData();
           formData.append('file', fileToSend);
@@ -469,35 +963,59 @@
           formData.append('model', model);
           formData.append('provider', $('provider').value);
           if (conversationId) formData.append('conversation_id', conversationId);
-          result = await fetchJson('/chat/file', { method: 'POST', body: formData });
+          if (currentProjectId) formData.append('project_id', currentProjectId);
+          await fetchChatStream('/chat/file/stream', {
+            method: 'POST',
+            body: formData,
+            signal: activeChatController.signal,
+          }, handleEvent);
         } else {
-          result = await api('/chat', {
-            text,
-            api_url: apiUrl,
-            api_key: apiKey,
-            model,
-            provider: $('provider').value,
-            conversation_id: conversationId,
-          });
+          await fetchChatStream('/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: activeChatController.signal,
+            body: JSON.stringify({
+              text,
+              api_url: apiUrl,
+              api_key: apiKey,
+              model,
+              provider: $('provider').value,
+              conversation_id: conversationId,
+              project_id: currentProjectId,
+            }),
+          }, handleEvent);
         }
+        if (!result) throw new Error('Kết nối kết thúc trước khi nhận được câu trả lời.');
         conversationId = result.conversation_id;
+        currentProjectId = result.project_id || currentProjectId;
         addBubble('assistant', result.final_text);
         clearAttachment();
+        await loadProjects();
         await loadConversations();
         message('chat-message', `Đã che ${result.entity_count} entity trước khi gửi.`, 'success');
       } catch (error) {
-        addBubble('assistant', `Không thể trả lời: ${error.message}`);
-        message('chat-message', error.message, 'error');
+        if (error.name === 'AbortError') {
+          message('chat-message', 'Đã hủy yêu cầu. Hội thoại dở dang không được lưu.', 'success');
+        } else {
+          addBubble('assistant', `Không thể trả lời: ${error.message}`);
+          message('chat-message', error.message, 'error');
+        }
       } finally {
-        button.disabled = false;
+        activeChatController = null;
+        hideChatProgress();
+        button.classList.remove('running');
+        button.setAttribute('aria-label', 'Gửi tin nhắn');
+        button.title = 'Gửi tin nhắn';
         $('attach-file').disabled = false;
-        button.textContent = 'Gửi tin nhắn';
         $('chat-input').focus();
       }
     }
 
     $('chat-send').addEventListener('click', sendChat);
-    $('new-chat').addEventListener('click', resetChat);
+    $('new-chat').addEventListener('click', () => {
+      resetChat();
+      if (sidebarMedia.matches) setSidebarCollapsed(true, false);
+    });
     $('chat-input').addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -505,8 +1023,10 @@
       }
     });
 
+    initializeSidebar();
     updateThemeButton();
     checkHealth();
+    loadProjects();
     loadConversations();
   </script>
 </body>
