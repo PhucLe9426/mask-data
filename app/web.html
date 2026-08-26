@@ -280,6 +280,7 @@
     .card.sidebar-collapsed .sidebar-head h2,
     .card.sidebar-collapsed .project-section,
     .card.sidebar-collapsed .conversation-list-head,
+    .card.sidebar-collapsed .conversation-search,
     .card.sidebar-collapsed .conversation-list {
       display: none;
     }
@@ -501,6 +502,30 @@
       background: var(--paper);
     }
 
+    .conversation-search {
+      position: relative;
+      margin: 0 0 10px;
+    }
+
+    .conversation-search svg {
+      position: absolute;
+      top: 50%;
+      left: 10px;
+      width: 15px;
+      height: 15px;
+      color: var(--muted);
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .conversation-search input {
+      width: 100%;
+      height: 36px;
+      padding: 7px 10px 7px 33px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+
     .conversation-list {
       display: grid;
       gap: 7px;
@@ -561,7 +586,8 @@
       white-space: nowrap;
     }
 
-    .conversation-delete {
+    .conversation-delete,
+    .conversation-menu {
       border: 0;
       border-radius: 7px;
       padding: 6px 8px;
@@ -573,6 +599,11 @@
     .conversation-delete:hover {
       background: rgba(192, 57, 75, .12);
       color: var(--bad);
+    }
+
+    .conversation-menu:hover {
+      background: var(--soft);
+      color: var(--brand);
     }
 
     .panel {
@@ -894,6 +925,8 @@
 
     dialog {
       width: min(520px, calc(100% - 28px));
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
       padding: 0;
       border: 1px solid var(--line);
       border-radius: 16px;
@@ -931,6 +964,63 @@
       height: 135px;
     }
 
+    .project-documents-box {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--soft);
+    }
+
+    .project-document-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .project-document-upload {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 7px 10px;
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .project-document-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .project-document-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--paper);
+    }
+
+    .project-document-name,
+    .project-document-meta {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .project-document-name { font-size: 12px; font-weight: 700; }
+    .project-document-meta { margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .project-document-delete { border: 0; background: transparent; color: var(--bad); cursor: pointer; }
+    .project-document-empty { color: var(--muted); font-size: 11px; text-align: center; }
+
     .dialog-note {
       margin: -5px 0 15px;
       color: var(--muted);
@@ -966,6 +1056,47 @@
       background: var(--brand);
       color: white;
     }
+
+    dialog.app-confirm-dialog {
+      width: min(430px, calc(100% - 28px));
+      overflow: hidden;
+    }
+
+    .app-confirm-content { padding: 24px; }
+    .app-confirm-top { display: flex; align-items: flex-start; gap: 13px; }
+    .app-confirm-icon {
+      display: grid;
+      flex: 0 0 auto;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--brand) 14%, transparent);
+      color: var(--brand);
+      font-size: 19px;
+      font-weight: 800;
+    }
+    .app-confirm-dialog.danger .app-confirm-icon {
+      background: color-mix(in srgb, var(--bad) 14%, transparent);
+      color: var(--bad);
+    }
+    .app-confirm-copy { min-width: 0; }
+    .app-confirm-copy h2 { margin: 1px 0 7px; font-size: 18px; }
+    .app-confirm-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+    .app-confirm-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+    .app-confirm-actions button {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 15px;
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .app-confirm-actions .confirm-primary { border-color: var(--brand); background: var(--brand); color: white; }
+    .app-confirm-dialog.danger .app-confirm-actions .confirm-primary { border-color: var(--bad); background: var(--bad); }
 
     /* Polished application layout */
     body {
@@ -1638,6 +1769,13 @@
             <button id="project-back" class="project-back" type="button" hidden>← Quay lại</button>
             <span id="conversation-section-label" class="conversation-section-label">Hội thoại riêng</span>
           </div>
+          <div class="conversation-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m16 16 4 4"></path>
+            </svg>
+            <input id="conversation-search" type="search" maxlength="200" placeholder="Tìm theo tên hội thoại..." autocomplete="off">
+          </div>
           <div id="conversation-list" class="conversation-list">
             <div class="conversation-empty">Chưa có cuộc trò chuyện.</div>
           </div>
@@ -1746,8 +1884,19 @@
         <textarea id="project-memory" class="project-memory" maxlength="20000"
           placeholder="Quy ước, quyết định, yêu cầu hoặc thông tin cần dùng xuyên suốt các hội thoại..."></textarea>
       </div>
+      <div class="dialog-field">
+        <label>Tài liệu dùng chung</label>
+        <div class="project-documents-box">
+          <div class="project-document-controls">
+            <span id="project-document-note" class="dialog-note">Lưu Project trước khi thêm tài liệu.</span>
+            <input id="project-document-input" type="file" hidden accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.docx">
+            <button id="upload-project-document" class="project-document-upload" type="button" disabled>+ Thêm tài liệu</button>
+          </div>
+          <div id="project-document-list" class="project-document-list"></div>
+        </div>
+      </div>
       <p class="dialog-note">Backend sẽ kết hợp phần ghi nhớ này với các tin nhắn liên quan từ những hội thoại khác
-        trong Project, rồi mask trước khi gọi Public LLM.</p>
+        và tài liệu dùng chung trong Project, rồi mask trước khi gọi Public LLM.</p>
       <div class="dialog-actions">
         <button id="delete-project" class="dialog-delete" type="button" hidden>Xóa Project</button>
         <button id="cancel-project" type="button">Hủy</button>
@@ -1756,15 +1905,101 @@
     </form>
   </dialog>
 
+  <dialog id="conversation-dialog">
+    <form id="conversation-form" class="project-dialog-form">
+      <h2>Quản lý hội thoại</h2>
+      <div class="dialog-field">
+        <label for="conversation-name">Tên hội thoại</label>
+        <input id="conversation-name" maxlength="200" required placeholder="Nhập tên hội thoại">
+      </div>
+      <div class="dialog-field">
+        <label for="conversation-project">Vị trí lưu</label>
+        <select id="conversation-project">
+          <option value="">Hội thoại riêng</option>
+        </select>
+      </div>
+      <p class="dialog-note">Khi chuyển vào Project, hội thoại sẽ sử dụng bộ nhớ và ngữ cảnh chung của Project đó.</p>
+      <div class="dialog-actions">
+        <button id="delete-conversation-dialog" class="dialog-delete" type="button">Xóa hội thoại</button>
+        <button id="cancel-conversation" type="button">Hủy</button>
+        <button class="dialog-save" type="submit">Lưu thay đổi</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="app-confirm-dialog" class="app-confirm-dialog">
+    <div class="app-confirm-content">
+      <div class="app-confirm-top">
+        <div id="app-confirm-icon" class="app-confirm-icon" aria-hidden="true">i</div>
+        <div class="app-confirm-copy">
+          <h2 id="app-confirm-title">Xác nhận</h2>
+          <p id="app-confirm-message"></p>
+        </div>
+      </div>
+      <div class="app-confirm-actions">
+        <button id="app-confirm-cancel" type="button">Hủy</button>
+        <button id="app-confirm-ok" class="confirm-primary" type="button">Xác nhận</button>
+      </div>
+    </div>
+  </dialog>
+
   <script>
     let conversationId = null;
     let selectedFile = null;
     let currentProjectId = null;
     let projects = [];
     let editingProjectId = null;
+    let editingConversation = null;
     let activeChatController = null;
+    let conversationSearchTimer = null;
+    let conversationLoadSequence = 0;
     const $ = (id) => document.getElementById(id);
     const sidebarMedia = window.matchMedia('(max-width: 760px)');
+    let appDialogResolver = null;
+
+    function finishAppDialog(result) {
+      const resolve = appDialogResolver;
+      appDialogResolver = null;
+      if ($('app-confirm-dialog').open) $('app-confirm-dialog').close();
+      if (resolve) resolve(result);
+    }
+
+    function showAppDialog({
+      title = 'Thông báo',
+      message: dialogMessage,
+      confirmText = 'Đồng ý',
+      cancelText = 'Hủy',
+      danger = false,
+      alertOnly = false,
+    }) {
+      if (appDialogResolver) finishAppDialog(false);
+      const dialog = $('app-confirm-dialog');
+      dialog.classList.toggle('danger', danger);
+      $('app-confirm-icon').textContent = danger ? '!' : 'i';
+      $('app-confirm-title').textContent = title;
+      $('app-confirm-message').textContent = dialogMessage;
+      $('app-confirm-ok').textContent = confirmText;
+      $('app-confirm-cancel').textContent = cancelText;
+      $('app-confirm-cancel').hidden = alertOnly;
+      dialog.showModal();
+      requestAnimationFrame(() => $('app-confirm-ok').focus());
+      return new Promise((resolve) => { appDialogResolver = resolve; });
+    }
+
+    function showAppAlert(dialogMessage, title = 'Thông báo') {
+      return showAppDialog({ title, message: dialogMessage, confirmText: 'Đóng', alertOnly: true });
+    }
+
+    function showAppConfirm(dialogMessage, title = 'Xác nhận xóa') {
+      return showAppDialog({ title, message: dialogMessage, confirmText: 'Xóa', danger: true });
+    }
+
+    $('app-confirm-ok').addEventListener('click', () => finishAppDialog(true));
+    $('app-confirm-cancel').addEventListener('click', () => finishAppDialog(false));
+    $('app-confirm-dialog').addEventListener('cancel', (event) => {
+      event.preventDefault();
+      finishAppDialog(false);
+    });
 
     function savedSidebarCollapsed() {
       try { return localStorage.getItem('masking-sidebar-collapsed') === 'true'; }
@@ -1842,7 +2077,7 @@
         name.textContent = ` ${project.name}`;
         const count = document.createElement('span');
         count.className = 'project-count';
-        count.textContent = `${project.conversation_count || 0} hội thoại`;
+        count.textContent = `${project.conversation_count || 0} hội thoại · ${project.document_count || 0} tài liệu`;
         openButton.append(name, count);
         openButton.addEventListener('click', () => selectProject(project.id));
         item.appendChild(openButton);
@@ -1882,6 +2117,59 @@
       await loadConversations();
     }
 
+    function formatDocumentSize(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    async function loadProjectDocuments() {
+      const list = $('project-document-list');
+      list.innerHTML = '';
+      if (!editingProjectId) return;
+      try {
+        const data = await fetchJson(`/projects/${editingProjectId}/documents`);
+        if (!data.documents.length) {
+          list.innerHTML = '<div class="project-document-empty">Project chưa có tài liệu.</div>';
+          return;
+        }
+        data.documents.forEach((projectDocument) => {
+          const item = document.createElement('div');
+          item.className = 'project-document-item';
+          const copy = document.createElement('div');
+          const name = document.createElement('span');
+          name.className = 'project-document-name';
+          name.textContent = projectDocument.name;
+          const meta = document.createElement('span');
+          meta.className = 'project-document-meta';
+          meta.textContent = formatDocumentSize(projectDocument.size_bytes);
+          copy.append(name, meta);
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'project-document-delete';
+          remove.textContent = '×';
+          remove.title = `Xóa ${projectDocument.name}`;
+          remove.addEventListener('click', async () => {
+            if (!await showAppConfirm(`Xóa tài liệu "${projectDocument.name}" khỏi Project?`)) return;
+            try {
+              await fetchJson(`/projects/${editingProjectId}/documents/${projectDocument.id}`, { method: 'DELETE' });
+              await loadProjectDocuments();
+              await loadProjects();
+            } catch (error) {
+              await showAppAlert(error.message, 'Không thể xóa tài liệu');
+            }
+          });
+          item.append(copy, remove);
+          list.appendChild(item);
+        });
+      } catch (error) {
+        const errorBox = document.createElement('div');
+        errorBox.className = 'project-document-empty';
+        errorBox.textContent = error.message;
+        list.appendChild(errorBox);
+      }
+    }
+
     function openProjectDialog(project = null) {
       editingProjectId = project?.id || null;
       $('project-dialog-title').textContent = project ? 'Chỉnh sửa Project' : 'Tạo Project';
@@ -1889,9 +2177,45 @@
       $('project-description').value = project?.description || '';
       $('project-memory').value = project?.memory || '';
       $('delete-project').hidden = !project;
+      $('upload-project-document').disabled = !project;
+      $('project-document-note').textContent = project
+        ? 'TXT, PDF, DOCX và các định dạng văn bản · tối đa 10 MB'
+        : 'Lưu Project trước khi thêm tài liệu.';
+      $('project-document-input').value = '';
       $('project-dialog').showModal();
+      loadProjectDocuments();
       $('project-name').focus();
     }
+
+    $('upload-project-document').addEventListener('click', () => $('project-document-input').click());
+    $('project-document-input').addEventListener('change', async () => {
+      const file = $('project-document-input').files[0];
+      if (!file || !editingProjectId) return;
+      if (file.size > 10 * 1024 * 1024) {
+        $('project-document-input').value = '';
+        await showAppAlert('File vượt quá giới hạn 10 MB.', 'Không thể tải tài liệu');
+        return;
+      }
+      const button = $('upload-project-document');
+      button.disabled = true;
+      button.textContent = 'Đang đọc...';
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        await fetchJson(`/projects/${editingProjectId}/documents`, {
+          method: 'POST',
+          body: formData,
+        });
+        await loadProjectDocuments();
+        await loadProjects();
+      } catch (error) {
+        await showAppAlert(error.message, 'Không thể tải tài liệu');
+      } finally {
+        $('project-document-input').value = '';
+        button.disabled = false;
+        button.textContent = '+ Thêm tài liệu';
+      }
+    });
 
     $('new-project').addEventListener('click', () => openProjectDialog());
     $('cancel-project').addEventListener('click', () => $('project-dialog').close());
@@ -1916,12 +2240,12 @@
         await loadConversations();
         message('chat-message', 'Đã lưu Project và bộ nhớ dùng chung.', 'success');
       } catch (error) {
-        alert(error.message);
+        await showAppAlert(error.message, 'Không thể lưu Project');
       }
     });
 
     $('delete-project').addEventListener('click', async () => {
-      if (!editingProjectId || !confirm('Xóa Project này? Các hội thoại sẽ được giữ lại nhưng không còn thuộc Project.')) return;
+      if (!editingProjectId || !await showAppConfirm('Xóa Project này? Các hội thoại sẽ được giữ lại nhưng không còn thuộc Project.')) return;
       try {
         await fetchJson(`/projects/${editingProjectId}`, { method: 'DELETE' });
         if (currentProjectId === editingProjectId) currentProjectId = null;
@@ -1930,7 +2254,61 @@
         await loadProjects();
         await loadConversations();
       } catch (error) {
-        alert(error.message);
+        await showAppAlert(error.message, 'Không thể xóa Project');
+      }
+    });
+
+    function openConversationDialog(conversation) {
+      editingConversation = conversation;
+      $('conversation-name').value = conversation.title;
+      const select = $('conversation-project');
+      select.innerHTML = '<option value="">Hội thoại riêng</option>';
+      projects.forEach((project) => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        select.appendChild(option);
+      });
+      select.value = conversation.project_id || '';
+      $('conversation-dialog').showModal();
+      $('conversation-name').focus();
+      $('conversation-name').select();
+    }
+
+    $('cancel-conversation').addEventListener('click', () => $('conversation-dialog').close());
+    $('conversation-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!editingConversation) return;
+      const title = $('conversation-name').value.trim();
+      if (!title) return;
+      const previousId = editingConversation.id;
+      try {
+        const updated = await fetchJson(`/conversations/${previousId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            project_id: $('conversation-project').value || null,
+          }),
+        });
+        if (conversationId === previousId) currentProjectId = updated.project_id || null;
+        editingConversation = null;
+        $('conversation-dialog').close();
+        await loadProjects();
+        await loadConversations();
+        updateProjectIndicators();
+        message('chat-message', 'Đã cập nhật tên và vị trí hội thoại.', 'success');
+      } catch (error) {
+        await showAppAlert(error.message, 'Không thể cập nhật hội thoại');
+      }
+    });
+
+    $('delete-conversation-dialog').addEventListener('click', async () => {
+      if (!editingConversation) return;
+      const deleted = await deleteConversation(editingConversation.id);
+      if (deleted) {
+        editingConversation = null;
+        $('conversation-dialog').close();
       }
     });
 
@@ -2062,27 +2440,36 @@
     }
 
     async function deleteConversation(id) {
-      if (!confirm('Xóa cuộc trò chuyện này? Hành động không thể hoàn tác.')) return;
+      if (!await showAppConfirm('Xóa cuộc trò chuyện này? Hành động không thể hoàn tác.')) return false;
       try {
         await fetchJson(`/conversations/${id}`, { method: 'DELETE' });
         if (conversationId === id) resetChat();
         await loadConversations();
         await loadProjects();
+        return true;
       } catch (error) {
         message('chat-message', error.message, 'error');
+        return false;
       }
     }
 
     async function loadConversations() {
       const list = $('conversation-list');
+      const sequence = ++conversationLoadSequence;
+      const search = $('conversation-search').value.trim();
       try {
-        const path = currentProjectId
-          ? `/conversations?project_id=${encodeURIComponent(currentProjectId)}`
-          : '/conversations?unassigned_only=true';
-        const data = await fetchJson(path);
+        const params = new URLSearchParams();
+        if (currentProjectId) params.set('project_id', currentProjectId);
+        else params.set('unassigned_only', 'true');
+        if (search) params.set('search', search);
+        const data = await fetchJson(`/conversations?${params.toString()}`);
+        if (sequence !== conversationLoadSequence) return;
         list.innerHTML = '';
         if (!data.conversations.length) {
-          list.innerHTML = `<div class="conversation-empty">${currentProjectId ? 'Project chưa có cuộc trò chuyện.' : 'Chưa có hội thoại riêng.'}</div>`;
+          const emptyText = search
+            ? 'Không tìm thấy tên hội thoại phù hợp.'
+            : (currentProjectId ? 'Project chưa có cuộc trò chuyện.' : 'Chưa có hội thoại riêng.');
+          list.innerHTML = `<div class="conversation-empty">${emptyText}</div>`;
           return;
         }
         data.conversations.forEach((conversation) => {
@@ -2102,16 +2489,18 @@
           openButton.append(title, meta);
           openButton.addEventListener('click', () => openConversation(conversation.id));
 
-          const deleteButton = document.createElement('button');
-          deleteButton.type = 'button';
-          deleteButton.className = 'conversation-delete';
-          deleteButton.textContent = '×';
-          deleteButton.title = 'Xóa cuộc trò chuyện';
-          deleteButton.addEventListener('click', () => deleteConversation(conversation.id));
-          item.append(openButton, deleteButton);
+          const menuButton = document.createElement('button');
+          menuButton.type = 'button';
+          menuButton.className = 'conversation-menu';
+          menuButton.textContent = '···';
+          menuButton.title = 'Đổi tên hoặc chuyển Project';
+          menuButton.setAttribute('aria-label', `Quản lý hội thoại ${conversation.title}`);
+          menuButton.addEventListener('click', () => openConversationDialog(conversation));
+          item.append(openButton, menuButton);
           list.appendChild(item);
         });
       } catch (error) {
+        if (sequence !== conversationLoadSequence) return;
         list.innerHTML = '';
         const errorBox = document.createElement('div');
         errorBox.className = 'conversation-empty';
@@ -2262,6 +2651,17 @@
 
     $('chat-send').addEventListener('click', sendChat);
     $('project-back').addEventListener('click', () => selectProject(null));
+    $('conversation-search').addEventListener('input', () => {
+      clearTimeout(conversationSearchTimer);
+      conversationSearchTimer = setTimeout(loadConversations, 250);
+    });
+    $('conversation-search').addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && $('conversation-search').value) {
+        $('conversation-search').value = '';
+        clearTimeout(conversationSearchTimer);
+        loadConversations();
+      }
+    });
     $('new-chat').addEventListener('click', () => {
       resetChat();
       if (sidebarMedia.matches) setSidebarCollapsed(true, false);

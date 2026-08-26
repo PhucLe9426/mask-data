@@ -121,6 +121,11 @@ class ProjectPayload(BaseModel):
     memory: str = Field(default="", max_length=20000)
 
 
+class ConversationUpdatePayload(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    project_id: str | None = None
+
+
 async def require_database() -> None:
     try:
         await storage.connect_database()
@@ -194,10 +199,54 @@ async def project_delete(project_id: str):
         raise HTTPException(status_code=404, detail="Project không tồn tại")
 
 
+@app.get("/projects/{project_id}/documents")
+async def project_documents_list(project_id: str):
+    await require_database()
+    if await storage.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project không tồn tại")
+    return {"documents": await storage.list_project_documents(project_id)}
+
+
+@app.post("/projects/{project_id}/documents", status_code=201)
+async def project_document_upload(
+    project_id: str,
+    file: Annotated[UploadFile, File(description="Tài liệu dùng chung của Project")],
+):
+    await require_database()
+    if await storage.get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project không tồn tại")
+    try:
+        content = await file.read(settings.MAX_UPLOAD_BYTES + 1)
+        document_name, document_text = file_reader.extract_text(
+            file.filename,
+            content,
+            max_bytes=settings.MAX_UPLOAD_BYTES,
+            max_chars=settings.MAX_EXTRACTED_CHARS,
+        )
+    except file_reader.FileExtractionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        await file.close()
+    return await storage.create_project_document(
+        project_id,
+        name=document_name,
+        content=document_text,
+        size_bytes=len(content),
+    )
+
+
+@app.delete("/projects/{project_id}/documents/{document_id}", status_code=204)
+async def project_document_delete(project_id: str, document_id: str):
+    await require_database()
+    if not await storage.delete_project_document(project_id, document_id):
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại trong Project")
+
+
 @app.get("/conversations")
 async def conversations_list(
     project_id: str | None = None,
     unassigned_only: bool = False,
+    search: str = "",
 ):
     await require_database()
     if project_id and unassigned_only:
@@ -211,6 +260,7 @@ async def conversations_list(
         "conversations": await storage.list_conversations(
             project_id,
             unassigned_only=unassigned_only,
+            search=search,
         )
     }
 
@@ -219,6 +269,23 @@ async def conversations_list(
 async def conversation_detail(conversation_id: str):
     await require_database()
     conversation = await storage.get_conversation(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Cuộc trò chuyện không tồn tại")
+    return conversation
+
+
+@app.put("/conversations/{conversation_id}")
+async def conversation_update(conversation_id: str, req: ConversationUpdatePayload):
+    await require_database()
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="Tên hội thoại không được để trống")
+    if req.project_id and await storage.get_project(req.project_id) is None:
+        raise HTTPException(status_code=404, detail="Project không tồn tại")
+    conversation = await storage.update_conversation(
+        conversation_id,
+        title=req.title,
+        project_id=req.project_id,
+    )
     if conversation is None:
         raise HTTPException(status_code=404, detail="Cuộc trò chuyện không tồn tại")
     return conversation
@@ -534,6 +601,18 @@ async def _run_chat(
             project_header += f"\nThông tin cần ghi nhớ: {project['memory']}"
         conversation_parts.append(project_header)
         detection_parts.append(project_header)
+
+        document_chunks = await storage.get_project_document_context(
+            effective_project_id,
+            query=req.text,
+        )
+        if document_chunks:
+            document_context = "[Tài liệu dùng chung của Project]\n" + "\n\n".join(
+                f"[Tài liệu: {item['name']}]\n{item['content']}"
+                for item in document_chunks
+            )
+            conversation_parts.append(document_context)
+            detection_parts.append(document_context)
 
         shared_messages = await storage.get_project_context(
             effective_project_id,

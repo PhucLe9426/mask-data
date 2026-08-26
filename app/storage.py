@@ -27,6 +27,15 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS project_documents (
+    id UUID PRIMARY KEY,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY,
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
@@ -76,6 +85,8 @@ CREATE INDEX IF NOT EXISTS idx_conversations_updated
     ON conversations(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_conversations_project_updated
     ON conversations(project_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_project_documents_project_created
+    ON project_documents(project_id, created_at DESC);
 """
 
 
@@ -148,10 +159,19 @@ async def create_project(name: str, description: str = "", memory: str = "") -> 
 async def list_projects() -> list[dict[str, Any]]:
     rows = await _get_pool().fetch(
         """
-        SELECT p.*, COUNT(c.id)::INTEGER AS conversation_count
+        SELECT
+            p.*,
+            (
+                SELECT COUNT(*)::INTEGER
+                FROM conversations AS c
+                WHERE c.project_id = p.id
+            ) AS conversation_count,
+            (
+                SELECT COUNT(*)::INTEGER
+                FROM project_documents AS d
+                WHERE d.project_id = p.id
+            ) AS document_count
         FROM projects AS p
-        LEFT JOIN conversations AS c ON c.project_id = p.id
-        GROUP BY p.id
         ORDER BY p.updated_at DESC, p.name
         """
     )
@@ -201,6 +221,116 @@ async def delete_project(project_id: str) -> bool:
     return status == "DELETE 1"
 
 
+async def create_project_document(
+    project_id: str,
+    *,
+    name: str,
+    content: str,
+    size_bytes: int,
+) -> dict[str, Any]:
+    row = await _get_pool().fetchrow(
+        """
+        INSERT INTO project_documents (id, project_id, name, content, size_bytes)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, project_id, name, size_bytes, created_at
+        """,
+        uuid.uuid4(),
+        uuid.UUID(project_id),
+        name[:255],
+        content,
+        size_bytes,
+    )
+    await _get_pool().execute(
+        "UPDATE projects SET updated_at = NOW() WHERE id = $1",
+        uuid.UUID(project_id),
+    )
+    return _record_to_dict(row)
+
+
+async def list_project_documents(project_id: str) -> list[dict[str, Any]]:
+    rows = await _get_pool().fetch(
+        """
+        SELECT id, project_id, name, size_bytes, created_at
+        FROM project_documents
+        WHERE project_id = $1
+        ORDER BY created_at DESC, name
+        """,
+        uuid.UUID(project_id),
+    )
+    return [_record_to_dict(row) for row in rows]
+
+
+async def delete_project_document(project_id: str, document_id: str) -> bool:
+    try:
+        parsed_project_id = uuid.UUID(project_id)
+        parsed_document_id = uuid.UUID(document_id)
+    except ValueError:
+        return False
+    status = await _get_pool().execute(
+        "DELETE FROM project_documents WHERE id = $1 AND project_id = $2",
+        parsed_document_id,
+        parsed_project_id,
+    )
+    if status == "DELETE 1":
+        await _get_pool().execute(
+            "UPDATE projects SET updated_at = NOW() WHERE id = $1",
+            parsed_project_id,
+        )
+        return True
+    return False
+
+
+async def get_project_document_context(
+    project_id: str,
+    *,
+    query: str,
+    max_chars: int = 20000,
+) -> list[dict[str, str]]:
+    """Return relevant bounded text chunks from documents attached to a project."""
+    rows = await _get_pool().fetch(
+        """
+        SELECT id, name, content, created_at
+        FROM project_documents
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+        """,
+        uuid.UUID(project_id),
+    )
+    terms = list(dict.fromkeys(re.findall(r"\w{3,}", query.casefold())))[:12]
+    ranked: list[tuple[int, int, str, str]] = []
+    position = 0
+    for row in rows:
+        content = row["content"]
+        start = 0
+        while start < len(content):
+            end = min(start + 4000, len(content))
+            if end < len(content):
+                boundary = max(
+                    content.rfind("\n", start + 2000, end),
+                    content.rfind(" ", start + 2000, end),
+                )
+                if boundary > start:
+                    end = boundary + 1
+            chunk = content[start:end].strip()
+            if chunk:
+                haystack = chunk.casefold()
+                score = sum(haystack.count(term) for term in terms)
+                ranked.append((score, -position, row["name"], chunk))
+                position += 1
+            start = end
+
+    selected: list[dict[str, str]] = []
+    used_chars = 0
+    for _, _, name, chunk in sorted(ranked, reverse=True):
+        if selected and used_chars + len(chunk) > max_chars:
+            continue
+        selected.append({"name": name, "content": chunk})
+        used_chars += len(chunk)
+        if used_chars >= max_chars or len(selected) >= 6:
+            break
+    return selected
+
+
 async def create_conversation(
     title: str,
     provider: str,
@@ -230,8 +360,10 @@ async def list_conversations(
     project_id: str | None = None,
     *,
     unassigned_only: bool = False,
+    search: str = "",
 ) -> list[dict[str, Any]]:
     parsed_project_id = uuid.UUID(project_id) if project_id else None
+    normalized_search = search.strip()[:200]
     rows = await _get_pool().fetch(
         """
         SELECT
@@ -260,11 +392,13 @@ async def list_conversations(
                 AND ($1::uuid IS NULL OR c.project_id = $1)
             )
         )
+          AND ($3::text = '' OR c.title ILIKE '%' || $3 || '%')
         GROUP BY c.id
         ORDER BY c.updated_at DESC
         """,
         parsed_project_id,
         unassigned_only,
+        normalized_search,
     )
     return [_record_to_dict(row) for row in rows]
 
@@ -378,6 +512,52 @@ async def update_conversation_config(
         model,
         api_url,
     )
+
+
+async def update_conversation(
+    conversation_id: str,
+    *,
+    title: str,
+    project_id: str | None,
+) -> dict[str, Any] | None:
+    """Rename a conversation and move it into or out of a project."""
+    try:
+        parsed_id = uuid.UUID(conversation_id)
+        parsed_project_id = uuid.UUID(project_id) if project_id else None
+    except ValueError:
+        return None
+
+    pool = _get_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            previous_project_id = await connection.fetchval(
+                "SELECT project_id FROM conversations WHERE id = $1",
+                parsed_id,
+            )
+            row = await connection.fetchrow(
+                """
+                UPDATE conversations
+                SET title = $2, project_id = $3, updated_at = NOW()
+                WHERE id = $1
+                RETURNING *
+                """,
+                parsed_id,
+                title.strip()[:200],
+                parsed_project_id,
+            )
+            if row is None:
+                return None
+            project_ids = [
+                value
+                for value in {previous_project_id, parsed_project_id}
+                if value is not None
+            ]
+            if project_ids:
+                await connection.execute(
+                    "UPDATE projects SET updated_at = NOW() WHERE id = ANY($1::uuid[])",
+                    project_ids,
+                )
+    return _record_to_dict(row)
 
 
 async def add_exchange(

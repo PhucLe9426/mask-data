@@ -42,6 +42,9 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Che toàn bộ lịch sử trò chuyện trước khi gửi tới Public LLM.
 - Lưu, mở lại và xóa cuộc trò chuyện bằng PostgreSQL; API key không được lưu.
 - Tạo Project chứa nhiều cuộc trò chuyện, mô tả và bộ nhớ chung.
+- Đính kèm tài liệu dùng chung cho Project; backend chỉ lưu văn bản đã trích xuất và lấy các đoạn liên quan làm ngữ cảnh.
+- Đổi tên hội thoại, chuyển hội thoại vào Project khác hoặc đưa về danh sách hội thoại riêng.
+- Tìm kiếm hội thoại theo tên trong Project đang chọn hoặc danh sách hội thoại riêng.
 - Tự lấy các tin nhắn liên quan và gần đây từ hội thoại khác trong cùng Project,
   sau đó mask toàn bộ context trước khi gọi Public LLM.
 - Tự thử lại tối đa 3 lần khi Gemini gặp lỗi tạm thời `429`, `500`, `502`,
