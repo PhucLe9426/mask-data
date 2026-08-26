@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     entity_count INTEGER NOT NULL DEFAULT 0 CHECK (entity_count >= 0),
     entities JSONB NOT NULL DEFAULT '[]'::jsonb,
+    sources JSONB NOT NULL DEFAULT '[]'::jsonb,
     attachment_name TEXT,
     attachment_text TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -74,6 +75,8 @@ CREATE TABLE IF NOT EXISTS messages (
 
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS entities JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE messages
+    ADD COLUMN IF NOT EXISTS sources JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE messages
     ADD COLUMN IF NOT EXISTS attachment_name TEXT;
 ALTER TABLE messages
@@ -137,6 +140,8 @@ def _record_to_dict(record: asyncpg.Record) -> dict[str, Any]:
         result["project_id"] = str(result["project_id"])
     if isinstance(result.get("entities"), str):
         result["entities"] = json.loads(result["entities"])
+    if isinstance(result.get("sources"), str):
+        result["sources"] = json.loads(result["sources"])
     return result
 
 
@@ -297,7 +302,7 @@ async def get_project_document_context(
         uuid.UUID(project_id),
     )
     terms = list(dict.fromkeys(re.findall(r"\w{3,}", query.casefold())))[:12]
-    ranked: list[tuple[int, int, str, str]] = []
+    ranked: list[tuple[int, int, str, str, str]] = []
     position = 0
     for row in rows:
         content = row["content"]
@@ -315,16 +320,16 @@ async def get_project_document_context(
             if chunk:
                 haystack = chunk.casefold()
                 score = sum(haystack.count(term) for term in terms)
-                ranked.append((score, -position, row["name"], chunk))
+                ranked.append((score, -position, str(row["id"]), row["name"], chunk))
                 position += 1
             start = end
 
     selected: list[dict[str, str]] = []
     used_chars = 0
-    for _, _, name, chunk in sorted(ranked, reverse=True):
+    for _, _, document_id, name, chunk in sorted(ranked, reverse=True):
         if selected and used_chars + len(chunk) > max_chars:
             continue
-        selected.append({"name": name, "content": chunk})
+        selected.append({"id": document_id, "name": name, "content": chunk})
         used_chars += len(chunk)
         if used_chars >= max_chars or len(selected) >= 6:
             break
@@ -482,7 +487,7 @@ async def get_conversation(
     attachment_text_column = ", attachment_text" if include_attachment_text else ""
     messages = await pool.fetch(
         f"""
-        SELECT id, conversation_id, role, content, entity_count, entities,
+        SELECT id, conversation_id, role, content, entity_count, entities, sources,
                attachment_name, created_at{attachment_text_column}
         FROM messages
         WHERE conversation_id = $1
@@ -566,6 +571,7 @@ async def add_exchange(
     assistant_text: str,
     entity_count: int,
     entities: list[dict[str, str]],
+    sources: list[dict[str, Any]] | None = None,
     attachment_name: str | None = None,
     attachment_text: str | None = None,
 ) -> None:
@@ -576,10 +582,10 @@ async def add_exchange(
             await connection.executemany(
                 """
                 INSERT INTO messages (
-                    conversation_id, role, content, entity_count, entities,
+                    conversation_id, role, content, entity_count, entities, sources,
                     attachment_name, attachment_text
                 )
-                VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8)
                 """,
                 [
                     (
@@ -588,10 +594,20 @@ async def add_exchange(
                         user_text,
                         entity_count,
                         json.dumps(entities),
+                        json.dumps([]),
                         attachment_name,
                         attachment_text,
                     ),
-                    (parsed_id, "assistant", assistant_text, 0, json.dumps(entities), None, None),
+                    (
+                        parsed_id,
+                        "assistant",
+                        assistant_text,
+                        0,
+                        json.dumps(entities),
+                        json.dumps(sources or []),
+                        None,
+                        None,
+                    ),
                 ],
             )
             await connection.execute(

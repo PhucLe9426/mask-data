@@ -43,6 +43,7 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Lưu, mở lại và xóa cuộc trò chuyện bằng PostgreSQL; API key không được lưu.
 - Tạo Project chứa nhiều cuộc trò chuyện, mô tả và bộ nhớ chung.
 - Đính kèm tài liệu dùng chung cho Project; backend chỉ lưu văn bản đã trích xuất và lấy các đoạn liên quan làm ngữ cảnh.
+- Lưu và hiển thị nguồn tài liệu cùng câu trả lời; có thể mở tên file để xem đoạn trích đã đưa vào ngữ cảnh.
 - Đổi tên hội thoại, chuyển hội thoại vào Project khác hoặc đưa về danh sách hội thoại riêng.
 - Tìm kiếm hội thoại theo tên trong Project đang chọn hoặc danh sách hội thoại riêng.
 - Tự lấy các tin nhắn liên quan và gần đây từ hội thoại khác trong cùng Project,

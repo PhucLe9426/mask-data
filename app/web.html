@@ -756,6 +756,47 @@
       opacity: .85;
     }
 
+    .bubble-sources {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .bubble-sources-label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .bubble-source {
+      margin-top: 5px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--soft);
+    }
+
+    .bubble-source summary {
+      padding: 7px 9px;
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      overflow-wrap: anywhere;
+    }
+
+    .bubble-source p {
+      margin: 0;
+      padding: 0 9px 9px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
     .chat-compose {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -2428,7 +2469,12 @@
         if (!conversation.messages.length) {
           $('chat-box').innerHTML = '<div id="chat-empty" class="chat-empty">Cuộc trò chuyện chưa có tin nhắn.</div>';
         } else {
-          conversation.messages.forEach((item) => addBubble(item.role, item.content, item.attachment_name));
+          conversation.messages.forEach((item) => addBubble(
+            item.role,
+            item.content,
+            item.attachment_name,
+            item.sources || [],
+          ));
         }
         document.querySelectorAll('.conversation-item').forEach((item) => item.classList.toggle('active', item.dataset.id === id));
         updateProjectIndicators();
@@ -2522,7 +2568,7 @@
       }
     });
 
-    function addBubble(role, content, attachmentName = null) {
+    function addBubble(role, content, attachmentName = null, sources = []) {
       $('chat-empty')?.remove();
       const bubble = document.createElement('div');
       bubble.className = `bubble ${role}`;
@@ -2535,6 +2581,25 @@
       const body = document.createElement('div');
       body.textContent = content;
       bubble.appendChild(body);
+      if (role === 'assistant' && sources.length) {
+        const sourceBox = document.createElement('div');
+        sourceBox.className = 'bubble-sources';
+        const sourceLabel = document.createElement('span');
+        sourceLabel.className = 'bubble-sources-label';
+        sourceLabel.textContent = `Nguồn tham khảo · ${sources.length}`;
+        sourceBox.appendChild(sourceLabel);
+        sources.forEach((source) => {
+          const details = document.createElement('details');
+          details.className = 'bubble-source';
+          const summary = document.createElement('summary');
+          summary.textContent = source.name;
+          const excerpt = document.createElement('p');
+          excerpt.textContent = source.excerpt || 'Không có đoạn trích.';
+          details.append(summary, excerpt);
+          sourceBox.appendChild(details);
+        });
+        bubble.appendChild(sourceBox);
+      }
       $('chat-box').appendChild(bubble);
       $('chat-box').scrollTop = $('chat-box').scrollHeight;
     }
@@ -2626,7 +2691,7 @@
         if (!result) throw new Error('Kết nối kết thúc trước khi nhận được câu trả lời.');
         conversationId = result.conversation_id;
         currentProjectId = result.project_id || currentProjectId;
-        addBubble('assistant', result.final_text);
+        addBubble('assistant', result.final_text, null, result.sources || []);
         clearAttachment();
         await loadProjects();
         await loadConversations();

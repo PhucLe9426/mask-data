@@ -113,6 +113,7 @@ class ChatResponse(BaseModel):
     final_text: str
     entities: list[dict]
     entity_count: int
+    sources: list[dict] = Field(default_factory=list)
 
 
 class ProjectPayload(BaseModel):
@@ -592,6 +593,7 @@ async def _run_chat(
     conversation_parts: list[str] = []
     detection_parts: list[str] = []
     known_entities: list[dict[str, str]] = []
+    used_sources: list[dict[str, str]] = []
 
     if project:
         project_header = f"[Bối cảnh Project: {project['name']}]"
@@ -607,6 +609,15 @@ async def _run_chat(
             query=req.text,
         )
         if document_chunks:
+            seen_document_ids: set[str] = set()
+            for item in document_chunks:
+                if item["id"] in seen_document_ids:
+                    continue
+                seen_document_ids.add(item["id"])
+                excerpt = " ".join(item["content"].split())[:500]
+                used_sources.append(
+                    {"id": item["id"], "name": item["name"], "excerpt": excerpt}
+                )
             document_context = "[Tài liệu dùng chung của Project]\n" + "\n\n".join(
                 f"[Tài liệu: {item['name']}]\n{item['content']}"
                 for item in document_chunks
@@ -651,7 +662,13 @@ async def _run_chat(
         current_user_content += f"\n\n[Tệp đính kèm: {attachment_name}]\n{attachment_text}"
     detection_parts.append(current_user_content)
     conversation_parts.append(f"Người dùng: {current_user_content}")
-    conversation_parts.append("Trợ lý: Hãy trả lời tin nhắn cuối cùng của người dùng.")
+    response_instruction = "Trợ lý: Hãy trả lời tin nhắn cuối cùng của người dùng."
+    if used_sources:
+        response_instruction += (
+            " Nếu sử dụng thông tin từ tài liệu Project, hãy ghi trích dẫn "
+            "[Nguồn: tên file] ngay sau thông tin tương ứng."
+        )
+    conversation_parts.append(response_instruction)
     conversation_text = "\n\n".join(conversation_parts)
 
     await emit("mask", 22, "Local LLM đang tìm dữ liệu nhạy cảm...")
@@ -746,6 +763,7 @@ async def _run_chat(
         final_text,
         mask_result["entity_count"],
         mask_result["entities"],
+        sources=used_sources,
         attachment_name=attachment_name,
         attachment_text=attachment_text,
     )
@@ -759,4 +777,5 @@ async def _run_chat(
         "final_text": final_text,
         "entities": mask_result["entities"],
         "entity_count": mask_result["entity_count"],
+        "sources": used_sources,
     }
