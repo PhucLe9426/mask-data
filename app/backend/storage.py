@@ -4,6 +4,7 @@ API keys are intentionally never accepted or stored by this module.
 """
 
 import asyncio
+from datetime import datetime
 import json
 import re
 import uuid
@@ -18,8 +19,26 @@ _connect_lock = asyncio.Lock()
 
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY,
+    email VARCHAR(254) NOT NULL,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    token_hash CHAR(64) PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(160) NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     memory TEXT NOT NULL DEFAULT '',
@@ -38,6 +57,7 @@ CREATE TABLE IF NOT EXISTS project_documents (
 
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
     title VARCHAR(200) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -49,6 +69,10 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 ALTER TABLE conversations
     ADD COLUMN IF NOT EXISTS project_id UUID;
+ALTER TABLE projects
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE conversations
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -90,6 +114,12 @@ CREATE INDEX IF NOT EXISTS idx_conversations_project_updated
     ON conversations(project_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_project_documents_project_created
     ON project_documents(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_user_updated
+    ON projects(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_updated
+    ON conversations(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_expires
+    ON auth_sessions(user_id, expires_at);
 """
 
 
@@ -136,6 +166,8 @@ def _record_to_dict(record: asyncpg.Record) -> dict[str, Any]:
         result["id"] = str(result["id"])
     if "conversation_id" in result:
         result["conversation_id"] = str(result["conversation_id"])
+    if result.get("user_id") is not None:
+        result["user_id"] = str(result["user_id"])
     if result.get("project_id") is not None:
         result["project_id"] = str(result["project_id"])
     if isinstance(result.get("entities"), str):
@@ -145,15 +177,90 @@ def _record_to_dict(record: asyncpg.Record) -> dict[str, Any]:
     return result
 
 
-async def create_project(name: str, description: str = "", memory: str = "") -> dict[str, Any]:
+async def create_user(email: str, password_hash: str) -> tuple[dict[str, Any], bool]:
+    """Create a user; the first account becomes admin and owns legacy rows."""
+    pool = _get_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            await connection.execute("SELECT pg_advisory_xact_lock(48290517)")
+            is_first = await connection.fetchval("SELECT COUNT(*) = 0 FROM users")
+            user_id = uuid.uuid4()
+            row = await connection.fetchrow(
+                """
+                INSERT INTO users (id, email, password_hash, role)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, email, role, created_at
+                """,
+                user_id,
+                email,
+                password_hash,
+                "admin" if is_first else "user",
+            )
+            if is_first:
+                await connection.execute(
+                    "UPDATE projects SET user_id = $1 WHERE user_id IS NULL", user_id
+                )
+                await connection.execute(
+                    "UPDATE conversations SET user_id = $1 WHERE user_id IS NULL", user_id
+                )
+    return _record_to_dict(row), bool(is_first)
+
+
+async def get_user_by_email(email: str, *, include_password: bool = False) -> dict[str, Any] | None:
+    columns = "id, email, role, created_at"
+    if include_password:
+        columns += ", password_hash"
+    row = await _get_pool().fetchrow(
+        f"SELECT {columns} FROM users WHERE LOWER(email) = LOWER($1)", email
+    )
+    return _record_to_dict(row) if row else None
+
+
+async def create_auth_session(user_id: str, token_hash: str, expires_at: datetime) -> None:
+    pool = _get_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            await connection.execute("DELETE FROM auth_sessions WHERE expires_at <= NOW()")
+            await connection.execute(
+                """
+                INSERT INTO auth_sessions (token_hash, user_id, expires_at)
+                VALUES ($1, $2, $3)
+                """,
+                token_hash,
+                uuid.UUID(user_id),
+                expires_at,
+            )
+
+
+async def get_user_by_session(token_hash: str) -> dict[str, Any] | None:
+    row = await _get_pool().fetchrow(
+        """
+        SELECT u.id, u.email, u.role, u.created_at
+        FROM auth_sessions AS s
+        JOIN users AS u ON u.id = s.user_id
+        WHERE s.token_hash = $1 AND s.expires_at > NOW()
+        """,
+        token_hash,
+    )
+    return _record_to_dict(row) if row else None
+
+
+async def delete_auth_session(token_hash: str) -> None:
+    await _get_pool().execute("DELETE FROM auth_sessions WHERE token_hash = $1", token_hash)
+
+
+async def create_project(
+    user_id: str, name: str, description: str = "", memory: str = ""
+) -> dict[str, Any]:
     project_id = uuid.uuid4()
     row = await _get_pool().fetchrow(
         """
-        INSERT INTO projects (id, name, description, memory)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO projects (id, user_id, name, description, memory)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING *
         """,
         project_id,
+        uuid.UUID(user_id),
         name.strip()[:160],
         description.strip()[:4000],
         memory.strip()[:20000],
@@ -161,7 +268,7 @@ async def create_project(name: str, description: str = "", memory: str = "") -> 
     return _record_to_dict(row)
 
 
-async def list_projects() -> list[dict[str, Any]]:
+async def list_projects(user_id: str) -> list[dict[str, Any]]:
     rows = await _get_pool().fetch(
         """
         SELECT
@@ -177,23 +284,30 @@ async def list_projects() -> list[dict[str, Any]]:
                 WHERE d.project_id = p.id
             ) AS document_count
         FROM projects AS p
+        WHERE p.user_id = $1
         ORDER BY p.updated_at DESC, p.name
-        """
+        """,
+        uuid.UUID(user_id),
     )
     return [_record_to_dict(row) for row in rows]
 
 
-async def get_project(project_id: str) -> dict[str, Any] | None:
+async def get_project(project_id: str, user_id: str) -> dict[str, Any] | None:
     try:
         parsed_id = uuid.UUID(project_id)
     except ValueError:
         return None
-    row = await _get_pool().fetchrow("SELECT * FROM projects WHERE id = $1", parsed_id)
+    row = await _get_pool().fetchrow(
+        "SELECT * FROM projects WHERE id = $1 AND user_id = $2",
+        parsed_id,
+        uuid.UUID(user_id),
+    )
     return _record_to_dict(row) if row else None
 
 
 async def update_project(
     project_id: str,
+    user_id: str,
     name: str,
     description: str = "",
     memory: str = "",
@@ -206,23 +320,28 @@ async def update_project(
         """
         UPDATE projects
         SET name = $2, description = $3, memory = $4, updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $5
         RETURNING *
         """,
         parsed_id,
         name.strip()[:160],
         description.strip()[:4000],
         memory.strip()[:20000],
+        uuid.UUID(user_id),
     )
     return _record_to_dict(row) if row else None
 
 
-async def delete_project(project_id: str) -> bool:
+async def delete_project(project_id: str, user_id: str) -> bool:
     try:
         parsed_id = uuid.UUID(project_id)
     except ValueError:
         return False
-    status = await _get_pool().execute("DELETE FROM projects WHERE id = $1", parsed_id)
+    status = await _get_pool().execute(
+        "DELETE FROM projects WHERE id = $1 AND user_id = $2",
+        parsed_id,
+        uuid.UUID(user_id),
+    )
     return status == "DELETE 1"
 
 
@@ -337,6 +456,7 @@ async def get_project_document_context(
 
 
 async def create_conversation(
+    user_id: str,
     title: str,
     provider: str,
     model: str,
@@ -347,11 +467,12 @@ async def create_conversation(
     parsed_project_id = uuid.UUID(project_id) if project_id else None
     row = await _get_pool().fetchrow(
         """
-        INSERT INTO conversations (id, title, provider, model, api_url, project_id)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO conversations (id, user_id, title, provider, model, api_url, project_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
         """,
         conversation_id,
+        uuid.UUID(user_id),
         title[:200],
         provider,
         model,
@@ -362,6 +483,7 @@ async def create_conversation(
 
 
 async def list_conversations(
+    user_id: str,
     project_id: str | None = None,
     *,
     unassigned_only: bool = False,
@@ -390,7 +512,8 @@ async def list_conversations(
             ) AS last_message
         FROM conversations AS c
         LEFT JOIN messages AS m ON m.conversation_id = c.id
-        WHERE (
+        WHERE c.user_id = $4
+          AND (
             ($2::boolean AND c.project_id IS NULL)
             OR (
                 NOT $2::boolean
@@ -404,12 +527,14 @@ async def list_conversations(
         parsed_project_id,
         unassigned_only,
         normalized_search,
+        uuid.UUID(user_id),
     )
     return [_record_to_dict(row) for row in rows]
 
 
 async def get_project_context(
     project_id: str,
+    user_id: str,
     *,
     query: str,
     exclude_conversation_id: str | None = None,
@@ -426,11 +551,13 @@ async def get_project_context(
         FROM messages AS m
         JOIN conversations AS c ON c.id = m.conversation_id
         WHERE c.project_id = $1
-          AND ($2::uuid IS NULL OR c.id <> $2)
+          AND c.user_id = $2
+          AND ($3::uuid IS NULL OR c.id <> $3)
         ORDER BY m.created_at DESC, m.id DESC
         LIMIT 100
         """,
         parsed_project_id,
+        uuid.UUID(user_id),
         parsed_excluded_id,
     )
 
@@ -468,6 +595,7 @@ async def get_project_context(
 
 async def get_conversation(
     conversation_id: str,
+    user_id: str,
     *,
     include_attachment_text: bool = False,
 ) -> dict[str, Any] | None:
@@ -478,8 +606,9 @@ async def get_conversation(
 
     pool = _get_pool()
     conversation = await pool.fetchrow(
-        "SELECT * FROM conversations WHERE id = $1",
+        "SELECT * FROM conversations WHERE id = $1 AND user_id = $2",
         parsed_id,
+        uuid.UUID(user_id),
     )
     if conversation is None:
         return None
@@ -502,6 +631,7 @@ async def get_conversation(
 
 async def update_conversation_config(
     conversation_id: str,
+    user_id: str,
     provider: str,
     model: str,
     api_url: str,
@@ -510,17 +640,19 @@ async def update_conversation_config(
         """
         UPDATE conversations
         SET provider = $2, model = $3, api_url = $4, updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $5
         """,
         uuid.UUID(conversation_id),
         provider,
         model,
         api_url,
+        uuid.UUID(user_id),
     )
 
 
 async def update_conversation(
     conversation_id: str,
+    user_id: str,
     *,
     title: str,
     project_id: str | None,
@@ -536,19 +668,21 @@ async def update_conversation(
     async with pool.acquire() as connection:
         async with connection.transaction():
             previous_project_id = await connection.fetchval(
-                "SELECT project_id FROM conversations WHERE id = $1",
+                "SELECT project_id FROM conversations WHERE id = $1 AND user_id = $2",
                 parsed_id,
+                uuid.UUID(user_id),
             )
             row = await connection.fetchrow(
                 """
                 UPDATE conversations
                 SET title = $2, project_id = $3, updated_at = NOW()
-                WHERE id = $1
+                WHERE id = $1 AND user_id = $4
                 RETURNING *
                 """,
                 parsed_id,
                 title.strip()[:200],
                 parsed_project_id,
+                uuid.UUID(user_id),
             )
             if row is None:
                 return None
@@ -567,6 +701,7 @@ async def update_conversation(
 
 async def add_exchange(
     conversation_id: str,
+    user_id: str,
     user_text: str,
     assistant_text: str,
     entity_count: int,
@@ -579,6 +714,13 @@ async def add_exchange(
     pool = _get_pool()
     async with pool.acquire() as connection:
         async with connection.transaction():
+            owns_conversation = await connection.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM conversations WHERE id = $1 AND user_id = $2)",
+                parsed_id,
+                uuid.UUID(user_id),
+            )
+            if not owns_conversation:
+                raise ValueError("Cuộc trò chuyện không tồn tại")
             await connection.executemany(
                 """
                 INSERT INTO messages (
@@ -624,13 +766,14 @@ async def add_exchange(
             )
 
 
-async def delete_conversation(conversation_id: str) -> bool:
+async def delete_conversation(conversation_id: str, user_id: str) -> bool:
     try:
         parsed_id = uuid.UUID(conversation_id)
     except ValueError:
         return False
     status = await _get_pool().execute(
-        "DELETE FROM conversations WHERE id = $1",
+        "DELETE FROM conversations WHERE id = $1 AND user_id = $2",
         parsed_id,
+        uuid.UUID(user_id),
     )
     return status == "DELETE 1"

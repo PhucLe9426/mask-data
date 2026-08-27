@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
     [switch]$Rebuild,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$OpenPgAdmin
 )
 
 $ErrorActionPreference = "Stop"
 $projectDirectory = $PSScriptRoot
 $webUrl = "http://127.0.0.1:8080/"
+$pgAdminUrl = "http://127.0.0.1:5051/"
 $healthUrl = "http://127.0.0.1:8080/health"
 $dockerDesktopPath = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
 $dockerCliPath = Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"
@@ -67,7 +69,7 @@ try {
         }
     }
 
-    Write-Host "Dang khoi dong FastAPI va PostgreSQL..." -ForegroundColor Cyan
+    Write-Host "Dang khoi dong FastAPI, PostgreSQL va pgAdmin..." -ForegroundColor Cyan
     $composeArguments = @("compose", "up", "-d")
     if ($Rebuild) {
         $composeArguments += "--build"
@@ -100,8 +102,13 @@ try {
     }
 
     Write-Host "Project da san sang: $webUrl" -ForegroundColor Green
+    Write-Host "pgAdmin: $pgAdminUrl" -ForegroundColor Green
+    Write-Host "Dang nhap pgAdmin: admin@masking-app.com / pgadmin_dev_password" -ForegroundColor DarkGray
     if (-not $NoBrowser) {
         Start-Process $webUrl
+    }
+    if ($OpenPgAdmin) {
+        Start-Process $pgAdminUrl
     }
 }
 catch {

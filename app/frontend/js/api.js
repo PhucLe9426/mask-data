@@ -16,7 +16,15 @@ function updateThemeButton() {
       const response = await fetch(path, { cache: 'no-store', ...options });
       if (response.status === 204) return null;
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || `Lỗi HTTP ${response.status}`);
+      if (response.status === 401 && !path.startsWith('/auth/')) {
+        if (typeof handleAuthenticationExpired === 'function') handleAuthenticationExpired();
+      }
+      if (!response.ok) {
+        const detail = Array.isArray(data.detail)
+          ? data.detail.map((item) => item.msg || 'Dữ liệu không hợp lệ').join('. ')
+          : data.detail;
+        throw new Error(detail || `Lỗi HTTP ${response.status}`);
+      }
       return data;
     }
 

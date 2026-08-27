@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Masking App PostgreSQL",
+      "Group": "Masking App",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "masking_app",
+      "Username": "masking",
+      "SSLMode": "prefer"
+    }
+  }
+}

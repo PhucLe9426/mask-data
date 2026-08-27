@@ -29,6 +29,11 @@ class FrontendIntegrityTests(unittest.TestCase):
             "model-options",
             "load-models",
             "app-confirm-dialog",
+            "auth-form",
+            "auth-email",
+            "auth-password",
+            "auth-password-confirm",
+            "logout-button",
         ):
             with self.subTest(element_id=element_id):
                 self.assertIn(f'id="{element_id}"', html)
@@ -42,6 +47,11 @@ class FrontendIntegrityTests(unittest.TestCase):
         self.assertNotIn("api-key", save_function)
         self.assertNotIn("apiKey", save_function)
         self.assertIn("localStorage.setItem", save_function)
+
+    def test_authentication_token_is_not_saved_in_browser_storage(self):
+        source = (FRONTEND / "js" / "auth.js").read_text(encoding="utf-8")
+        self.assertNotIn("localStorage", source)
+        self.assertNotIn("sessionStorage", source)
 
 
 if __name__ == "__main__":

@@ -16,10 +16,78 @@
   <link rel="stylesheet" href="/static/css/base.css?v=20260827-5">
   <link rel="stylesheet" href="/static/css/layout.css?v=20260827-2">
   <link rel="stylesheet" href="/static/css/chat-theme.css?v=20260827-4">
+  <link rel="stylesheet" href="/static/css/auth.css?v=20260827-2">
 </head>
 
-<body>
-  <main class="shell">
+<body class="auth-loading">
+  <section id="auth-view" class="auth-view" aria-labelledby="auth-title">
+    <button id="auth-theme-toggle" class="auth-theme-toggle" type="button" aria-label="Chuyển giao diện">☀</button>
+    <div class="auth-layout">
+      <aside class="auth-showcase">
+        <div class="auth-brand">
+          <div class="auth-brand-mark" aria-hidden="true">◈</div>
+          <div><strong>Data Masking</strong><span>Private AI Workspace</span></div>
+        </div>
+        <div class="auth-showcase-copy">
+          <span class="auth-showcase-label"><i></i> Bảo mật ngay trên máy của bạn</span>
+          <h2>Trò chuyện với AI,<br><em>giữ dữ liệu riêng tư.</em></h2>
+          <p>Dữ liệu nhạy cảm được nhận diện và che cục bộ trước khi gửi đến mô hình AI công khai.</p>
+        </div>
+        <div class="auth-benefits">
+          <div class="auth-benefit"><span>01</span><div><strong>Không lưu API key</strong><small>Key chỉ tồn tại trong phiên hiện tại.</small></div></div>
+          <div class="auth-benefit"><span>02</span><div><strong>Dữ liệu tách biệt</strong><small>Mỗi tài khoản có Project và hội thoại riêng.</small></div></div>
+          <div class="auth-benefit"><span>03</span><div><strong>Xử lý cục bộ</strong><small>Local LLM che thông tin trước khi rời máy.</small></div></div>
+        </div>
+        <p class="auth-showcase-foot">Protected by local-first data masking</p>
+      </aside>
+
+      <div class="auth-card">
+        <div class="auth-mobile-brand">
+          <div class="auth-brand-mark" aria-hidden="true">◈</div>
+          <strong>Data Masking</strong>
+        </div>
+        <div class="auth-heading">
+          <span id="auth-mode-eyebrow" class="auth-eyebrow">Chào mừng trở lại</span>
+          <h1 id="auth-title">Đăng nhập</h1>
+          <p id="auth-subtitle">Đăng nhập để tiếp tục cuộc trò chuyện của bạn.</p>
+        </div>
+        <form id="auth-form" class="auth-form">
+          <div class="auth-field">
+            <label for="auth-email">Địa chỉ email</label>
+            <div class="auth-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="m4 7 8 6 8-6"></path></svg>
+              <input id="auth-email" type="email" maxlength="254" autocomplete="email" required
+                placeholder="ten@email.com">
+            </div>
+          </div>
+          <div class="auth-field">
+            <label for="auth-password">Mật khẩu</label>
+            <div class="auth-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="3"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <input id="auth-password" type="password" minlength="10" maxlength="128"
+                autocomplete="current-password" required placeholder="Tối thiểu 10 ký tự">
+              <button class="password-toggle" type="button" data-password-target="auth-password">Hiện</button>
+            </div>
+          </div>
+          <div id="auth-password-confirm-field" class="auth-field auth-confirm-field" hidden>
+            <label for="auth-password-confirm">Nhập lại mật khẩu</label>
+            <div class="auth-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 4.5 6v5.2c0 4.4 3.1 8.4 7.5 9.8 4.4-1.4 7.5-5.4 7.5-9.8V6z"></path><path d="m9 12 2 2 4-4"></path></svg>
+              <input id="auth-password-confirm" type="password" minlength="10" maxlength="128"
+                autocomplete="new-password" placeholder="Nhập lại mật khẩu">
+              <button class="password-toggle" type="button" data-password-target="auth-password-confirm">Hiện</button>
+            </div>
+          </div>
+          <p id="auth-message" class="auth-message" aria-live="polite"></p>
+          <button id="auth-submit" class="auth-submit" type="submit"><span>Đăng nhập</span><b aria-hidden="true">→</b></button>
+        </form>
+        <div class="auth-switch-row"><span id="auth-switch-prompt">Chưa có tài khoản?</span><button id="auth-switch" class="auth-switch" type="button">Đăng ký ngay</button></div>
+        <p class="auth-security"><span>✓</span> Mật khẩu được mã hóa bằng Argon2 · Cookie HttpOnly</p>
+      </div>
+    </div>
+  </section>
+
+  <main id="app-shell" class="shell">
     <header>
       <div class="header-main">
         <div class="brand">
@@ -31,6 +99,18 @@
         </div>
       </div>
       <div class="header-actions">
+        <div class="account-menu">
+          <button id="account-toggle" class="account-toggle" type="button" aria-expanded="false"
+            aria-controls="account-popover" title="Tài khoản">
+            <span id="account-avatar" class="account-avatar">U</span>
+            <span id="account-email" class="account-email"></span>
+          </button>
+          <div id="account-popover" class="account-popover" hidden>
+            <strong id="account-popover-email"></strong>
+            <span id="account-role" class="account-role">Người dùng</span>
+            <button id="logout-button" type="button">Đăng xuất</button>
+          </div>
+        </div>
         <button id="settings-open" class="settings-toggle" type="button" aria-label="Mở cài đặt mô hình"
           title="Cài đặt mô hình">⚙</button>
         <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Chuyển giao diện">◐</button>
@@ -270,6 +350,7 @@
 
   <script src="/static/js/state.js?v=20260827-2"></script>
   <script src="/static/js/api.js?v=20260827-2"></script>
+  <script src="/static/js/auth.js?v=20260827-2"></script>
   <script src="/static/js/settings.js?v=20260827-4"></script>
   <script src="/static/js/projects.js?v=20260827-2"></script>
   <script src="/static/js/conversations.js?v=20260827-2"></script>

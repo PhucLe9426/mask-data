@@ -157,6 +157,25 @@ FastAPI trong Docker kết nối database qua hostname nội bộ `postgres:5432
 Compose tự override `DATABASE_URL`; giá trị port `5434` trong `.env.example`
 chỉ dùng khi chạy FastAPI trực tiếp trên Windows.
 
+### Xem PostgreSQL bằng pgAdmin
+
+pgAdmin được chạy cùng Docker Compose tại <http://127.0.0.1:5051>.
+
+```text
+Email: admin@masking-app.com
+Password: pgadmin_dev_password
+```
+
+Server `Masking App PostgreSQL` đã được tạo sẵn. Khi mở server lần đầu, nhập
+mật khẩu database `masking_dev_password` và bật **Save password**. Sau đó mở
+`Databases → masking_app → Schemas → public → Tables` để xem các bảng.
+
+Muốn `start.ps1` tự mở cả ứng dụng và pgAdmin:
+
+```powershell
+.\start.ps1 -OpenPgAdmin
+```
+
 ## Kiểm thử tự động
 
 Bộ test dùng `unittest` có sẵn trong Python, không gọi Local LLM/Public LLM
@@ -177,6 +196,9 @@ docker compose exec -T app python -m unittest discover -s tests -v
 
 Các nhóm đang được kiểm tra:
 
+- Đăng ký, đăng nhập, băm mật khẩu Argon2 và token phiên không lưu trong
+  `localStorage`.
+- API từ chối người chưa đăng nhập và truy vấn dữ liệu theo đúng chủ sở hữu.
 - Mask, đối chiếu entity mất dấu và khôi phục placeholder.
 - Đọc file, giới hạn dung lượng/ký tự và định dạng không hợp lệ.
 - Chuẩn hóa danh sách model Gemini, Anthropic và OpenAI-compatible.
@@ -270,6 +292,23 @@ Với các dịch vụ tương thích OpenAI như OpenRouter, Groq hoặc Togeth
 URL và model bằng thông tin do dịch vụ đó cung cấp.
 
 ## API endpoints
+
+### Đăng nhập và phân quyền
+
+Khi mở ứng dụng lần đầu, chọn **Đăng ký**. Tài khoản đầu tiên được gán vai trò
+`admin` và nhận toàn bộ Project/hội thoại đã có trước khi thêm đăng nhập. Các tài
+khoản đăng ký sau có vai trò `user`; mỗi tài khoản chỉ thấy Project, tài liệu và
+hội thoại thuộc `user_id` của mình.
+
+- `POST /auth/register`: tạo tài khoản bằng email và mật khẩu tối thiểu 10 ký tự.
+- `POST /auth/login`: đăng nhập; tối đa 8 lần sai trong 5 phút cho mỗi IP/email.
+- `GET /auth/me`: lấy tài khoản của phiên hiện tại.
+- `POST /auth/logout`: xóa phiên hiện tại.
+
+Mật khẩu được băm bằng Argon2. Trình duyệt chỉ nhận cookie phiên `HttpOnly` và
+PostgreSQL chỉ lưu SHA-256 của token phiên; API key Public LLM vẫn không được lưu.
+Ngoại trừ `/`, `/health` và các endpoint đăng nhập/đăng ký, API yêu cầu phiên hợp
+lệ. Vì vậy các lệnh `curl` bên dưới cần gửi kèm cookie lấy từ `/auth/login`.
 
 ### `GET /health`
 
@@ -377,6 +416,10 @@ DATABASE_URL=postgresql://masking:masking_dev_password@127.0.0.1:5434/masking_ap
 DATABASE_MIN_POOL_SIZE=1
 DATABASE_MAX_POOL_SIZE=5
 
+AUTH_SESSION_DAYS=7
+AUTH_COOKIE_SECURE=false
+AUTH_COOKIE_NAME=masking_session
+
 MAX_UPLOAD_BYTES=10485760
 MAX_EXTRACTED_CHARS=200000
 LOCAL_LLM_CHUNK_CHARS=12000
@@ -413,7 +456,9 @@ Kiểm tra API key, model, quyền truy cập và API URL của nhà cung cấp.
 - Session mapping hiện được lưu trong RAM và mất khi restart. Nhiều worker cũng
   không dùng chung mapping; hội thoại vẫn được giữ trong PostgreSQL, nhưng nên
   chuyển mapping tạm sang Redis nếu triển khai nhiều worker.
-- CORS đang mở `*`; cần giới hạn origin được phép truy cập.
+- CORS hiện giới hạn cho `127.0.0.1:8080` và `localhost:8080`; thêm origin triển
+  khai thực tế trước khi đưa ứng dụng lên domain khác.
+- Bắt buộc đặt `AUTH_COOKIE_SECURE=true` và phục vụ qua HTTPS ở production.
 - Endpoint `/chat` nhận API URL từ người dùng. Nếu public ứng dụng ra Internet,
   cần whitelist domain nhà cung cấp để tránh SSRF.
 - Chỉ triển khai qua HTTPS để bảo vệ API key trên đường truyền.
@@ -428,6 +473,7 @@ app/
 ├── __init__.py
 ├── backend/        # FastAPI và logic xử lý phía máy chủ
 │   ├── __init__.py
+│   ├── auth.py         # Argon2 và token phiên đăng nhập
 │   ├── config.py       # Đọc cấu hình môi trường
 │   ├── file_reader.py  # Trích xuất text cục bộ từ file upload
 │   ├── main.py         # FastAPI endpoints

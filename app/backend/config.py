@@ -31,6 +31,13 @@ class Settings:
     DATABASE_MIN_POOL_SIZE: int = int(os.getenv("DATABASE_MIN_POOL_SIZE", "1"))
     DATABASE_MAX_POOL_SIZE: int = int(os.getenv("DATABASE_MAX_POOL_SIZE", "5"))
 
+    # Phiên đăng nhập. Bật Secure khi ứng dụng được phục vụ qua HTTPS.
+    AUTH_SESSION_DAYS: int = int(os.getenv("AUTH_SESSION_DAYS", "7"))
+    AUTH_COOKIE_SECURE: bool = os.getenv("AUTH_COOKIE_SECURE", "false").lower() in {
+        "1", "true", "yes", "on"
+    }
+    AUTH_COOKIE_NAME: str = os.getenv("AUTH_COOKIE_NAME", "masking_session")
+
     # Giới hạn upload để bảo vệ RAM và context window của local/public LLM.
     MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
     MAX_EXTRACTED_CHARS: int = int(os.getenv("MAX_EXTRACTED_CHARS", "200000"))
