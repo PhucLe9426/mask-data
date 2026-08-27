@@ -280,6 +280,10 @@
       flex-direction: column;
     }
 
+    .card.sidebar-collapsed .sidebar-toggle { order: 1; }
+    .card.sidebar-collapsed .new-chat-btn { order: 2; }
+    .card.sidebar-collapsed .collapsed-projects-btn { order: 3; }
+
     .card.sidebar-collapsed .new-chat-btn {
       display: grid;
       place-items: center;

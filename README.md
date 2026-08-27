@@ -157,6 +157,37 @@ FastAPI trong Docker kết nối database qua hostname nội bộ `postgres:5432
 Compose tự override `DATABASE_URL`; giá trị port `5434` trong `.env.example`
 chỉ dùng khi chạy FastAPI trực tiếp trên Windows.
 
+## Kiểm thử tự động
+
+Bộ test dùng `unittest` có sẵn trong Python, không gọi Local LLM/Public LLM
+thật, không dùng API key thật và không sửa dữ liệu PostgreSQL đang chạy.
+
+Trên Windows, chạy một lệnh sau. Script sẽ tự mở Docker Desktop nếu cần,
+build image mới và chạy toàn bộ test:
+
+```powershell
+.\test.ps1
+```
+
+Hoặc chạy trực tiếp trong container đã được build:
+
+```powershell
+docker compose exec -T app python -m unittest discover -s tests -v
+```
+
+Các nhóm đang được kiểm tra:
+
+- Mask, đối chiếu entity mất dấu và khôi phục placeholder.
+- Đọc file, giới hạn dung lượng/ký tự và định dạng không hợp lệ.
+- Chuẩn hóa danh sách model Gemini, Anthropic và OpenAI-compatible.
+- API Project, hội thoại và xử lý lỗi HTTP.
+- API key không xuất hiện trong schema PostgreSQL hoặc cấu hình frontend lưu
+  bằng `localStorage`.
+- Các ID HTML không trùng và toàn bộ CSS/JavaScript được tham chiếu đều tồn tại.
+
+GitHub Actions cũng tự chạy bộ test này mỗi khi có `push` hoặc
+`pull_request`; cấu hình nằm tại `.github/workflows/tests.yml`.
+
 ## Chạy FastAPI trực tiếp trên máy
 
 Chỉ dùng cách này khi muốn phát triển/debug ngoài Docker. PostgreSQL vẫn cần
