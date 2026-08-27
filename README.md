@@ -39,6 +39,8 @@ Lê Trọng Phúc, số điện thoại 0913885457
   hoặc thay khoảng trắng bằng dấu gạch dưới.
 - Che và khôi phục dữ liệu theo `session_id`.
 - Chat trực tiếp với OpenAI-compatible, Anthropic và Google Gemini.
+- Tải danh sách model theo API key ngay trong Cài đặt; hỗ trợ tìm/chọn từ
+  dropdown hoặc nhập model thủ công khi nhà cung cấp không có API `/models`.
 - Che toàn bộ lịch sử trò chuyện trước khi gửi tới Public LLM.
 - Lưu, mở lại và xóa cuộc trò chuyện bằng PostgreSQL; API key không được lưu.
 - Tạo Project chứa nhiều cuộc trò chuyện, mô tả và bộ nhớ chung.

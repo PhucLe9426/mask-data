@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.backend import file_reader, masking, storage
+from app.backend import file_reader, masking, public_llm, storage
 from app.backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def prevent_stale_static_assets(request, call_next):
+    """Buộc trình duyệt kiểm tra lại CSS/JS sau mỗi lần cập nhật local app."""
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 APP_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = APP_DIR / "frontend"
@@ -119,6 +128,21 @@ class ChatResponse(BaseModel):
     sources: list[dict] = Field(default_factory=list)
 
 
+class ModelListRequest(BaseModel):
+    provider: Literal["openai_compatible", "anthropic", "gemini"]
+    api_url: HttpUrl
+    api_key: str = Field(min_length=1)
+
+
+class AvailableModel(BaseModel):
+    id: str
+    display_name: str
+
+
+class ModelListResponse(BaseModel):
+    models: list[AvailableModel]
+
+
 class ProjectPayload(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str = Field(default="", max_length=4000)
@@ -160,6 +184,38 @@ async def health():
     except Exception:
         database_status = "unavailable"
     return {"status": "ok", "database": database_status}
+
+
+@app.post("/llm/models", response_model=ModelListResponse)
+async def list_llm_models(req: ModelListRequest):
+    """Lấy danh sách model bằng API key nhưng không lưu key ở backend."""
+    try:
+        models = await public_llm.list_public_models(
+            provider=req.provider,
+            api_url=str(req.api_url),
+            api_key=req.api_key.strip(),
+        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        if status in {401, 403}:
+            detail = "API key không hợp lệ hoặc không có quyền xem danh sách model."
+        elif status == 429:
+            detail = "Nhà cung cấp đang giới hạn request. Hãy thử lại sau."
+        else:
+            detail = f"Không lấy được danh sách model (HTTP {status})."
+        raise HTTPException(status_code=502, detail=detail) from exc
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Không kết nối được endpoint danh sách model của nhà cung cấp.",
+        ) from exc
+
+    if not models:
+        raise HTTPException(
+            status_code=404,
+            detail="Không tìm thấy model chat phù hợp. Bạn vẫn có thể nhập model thủ công.",
+        )
+    return {"models": models}
 
 
 @app.get("/projects")

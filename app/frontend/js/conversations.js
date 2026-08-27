@@ -66,6 +66,7 @@ function resetChat() {
       $('provider').value = conversation.provider;
       $('api-url').value = conversation.api_url;
       $('model').value = conversation.model;
+      updateModelSummary();
     }
 
     async function openConversation(id) {

@@ -1,17 +1,4 @@
-$('provider').addEventListener('change', () => {
-      if ($('provider').value === 'anthropic') {
-        $('api-url').value = 'https://api.anthropic.com/v1/messages';
-        $('model').value = '';
-      } else if ($('provider').value === 'gemini') {
-        $('api-url').value = 'https://generativelanguage.googleapis.com/v1beta/models';
-        $('model').value = 'gemini-3.6-flash';
-      } else {
-        $('api-url').value = 'https://api.openai.com/v1/chat/completions';
-        $('model').value = '';
-      }
-    });
-
-    function addBubble(role, content, attachmentName = null, sources = []) {
+function addBubble(role, content, attachmentName = null, sources = []) {
       $('chat-empty')?.remove();
       const bubble = document.createElement('div');
       bubble.className = `bubble ${role}`;
@@ -78,7 +65,11 @@ $('provider').addEventListener('change', () => {
       const apiKey = $('api-key').value.trim();
       const apiUrl = $('api-url').value.trim();
       const model = $('model').value.trim();
-      if (!apiUrl || !model || !apiKey) return message('chat-message', 'Vui lòng nhập đủ API URL, model và API key.', 'error');
+      if (!apiUrl || !model || !apiKey) {
+        message('chat-message', 'Vui lòng hoàn tất cấu hình Public LLM.', 'error');
+        openModelSettings(!apiUrl ? 'api-url' : (!model ? 'model' : 'api-key'));
+        return;
+      }
       if (!text && !selectedFile) return message('chat-message', 'Vui lòng nhập tin nhắn hoặc đính kèm file.', 'error');
 
       const button = $('chat-send');

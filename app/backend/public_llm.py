@@ -23,6 +23,80 @@ QUY TẮC BẮT BUỘC:
 Bây giờ hãy trả lời yêu cầu của người dùng bên dưới, tuân thủ đúng các quy tắc trên."""
 
 
+def _openai_models_url(api_url: str) -> str:
+    """Suy ra endpoint /models từ endpoint chat/responses kiểu OpenAI."""
+    url = httpx.URL(api_url)
+    path = url.path.rstrip("/")
+    for suffix in ("/chat/completions", "/responses", "/completions"):
+        if path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+    if not path.endswith("/models"):
+        path = f"{path}/models"
+    return str(url.copy_with(path=path, query=None))
+
+
+async def list_public_models(
+    *,
+    provider: str,
+    api_url: str,
+    api_key: str,
+) -> list[dict[str, str]]:
+    """Lấy và chuẩn hóa danh sách model từ nhà cung cấp Public LLM."""
+    timeout = min(settings.REQUEST_TIMEOUT, 30)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        if provider == "gemini":
+            response = await client.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                params={"pageSize": 1000},
+                headers={"x-goog-api-key": api_key},
+            )
+            response.raise_for_status()
+            items = []
+            for item in response.json().get("models", []):
+                supported = item.get("supportedGenerationMethods") or item.get("supportedActions") or []
+                if "generateContent" not in supported:
+                    continue
+                model_id = str(item.get("name", "")).removeprefix("models/")
+                if model_id:
+                    items.append({
+                        "id": model_id,
+                        "display_name": item.get("displayName") or model_id,
+                    })
+        elif provider == "anthropic":
+            response = await client.get(
+                "https://api.anthropic.com/v1/models",
+                params={"limit": 1000},
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+            )
+            response.raise_for_status()
+            items = [
+                {
+                    "id": str(item["id"]),
+                    "display_name": item.get("display_name") or str(item["id"]),
+                }
+                for item in response.json().get("data", [])
+                if item.get("id")
+            ]
+        else:
+            response = await client.get(
+                _openai_models_url(api_url),
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            response.raise_for_status()
+            items = [
+                {"id": str(item["id"]), "display_name": str(item["id"])}
+                for item in response.json().get("data", [])
+                if item.get("id")
+            ]
+
+    unique = {item["id"]: item for item in items}
+    return sorted(unique.values(), key=lambda item: item["display_name"].lower())
+
+
 async def call_public_llm(
     masked_text: str,
     system_prompt: str | None = None,
