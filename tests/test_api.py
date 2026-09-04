@@ -92,6 +92,22 @@ class APITests(unittest.IsolatedAsyncioTestCase):
             response = await self.client.get("/projects")
         self.assertEqual(response.status_code, 401)
 
+    async def test_export_endpoint_returns_download_without_database_write(self):
+        response = await self.client.post(
+            "/exports",
+            json={
+                "format": "xlsx",
+                "title": "Tổng hợp AI",
+                "content": "Nội dung đã tổng hợp",
+                "sources": [],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response.headers["content-type"])
+        self.assertIn("attachment", response.headers["content-disposition"])
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertTrue(response.content.startswith(b"PK"))
+
     async def test_project_lookup_is_scoped_to_current_user(self):
         with (
             patch.object(main, "require_database", AsyncMock()),

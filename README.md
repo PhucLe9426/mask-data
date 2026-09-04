@@ -38,7 +38,7 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Đối chiếu entity với văn bản gốc, kể cả khi local LLM làm mất dấu tiếng Việt
   hoặc thay khoảng trắng bằng dấu gạch dưới.
 - Che và khôi phục dữ liệu theo `session_id`.
-- Chat trực tiếp với OpenAI-compatible, Anthropic và Google Gemini.
+- Chat trực tiếp với OpenAI-compatible, Anthropic, Google Gemini và xAI Grok.
 - Tải danh sách model theo API key ngay trong Cài đặt; hỗ trợ tìm/chọn từ
   dropdown hoặc nhập model thủ công khi nhà cung cấp không có API `/models`.
 - Che toàn bộ lịch sử trò chuyện trước khi gửi tới Public LLM.
@@ -46,6 +46,7 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Tạo Project chứa nhiều cuộc trò chuyện, mô tả và bộ nhớ chung.
 - Đính kèm tài liệu dùng chung cho Project; backend chỉ lưu văn bản đã trích xuất và lấy các đoạn liên quan làm ngữ cảnh.
 - Lưu và hiển thị nguồn tài liệu cùng câu trả lời; có thể mở tên file để xem đoạn trích đã đưa vào ngữ cảnh.
+- Xuất từng câu trả lời AI thành Word (`.docx`), Excel (`.xlsx`) hoặc PDF (`.pdf`).
 - Đổi tên hội thoại, chuyển hội thoại vào Project khác hoặc đưa về danh sách hội thoại riêng.
 - Tìm kiếm hội thoại theo tên trong Project đang chọn hoặc danh sách hội thoại riêng.
 - Tự lấy các tin nhắn liên quan và gần đây từ hội thoại khác trong cùng Project,
@@ -62,7 +63,7 @@ Lê Trọng Phúc, số điện thoại 0913885457
 - Docker Desktop để chạy PostgreSQL cục bộ, hoặc một PostgreSQL bên ngoài.
 - Local LLM có API tương thích OpenAI Chat Completions.
 - Local LLM mặc định của dự án:
-  `http://192.168.210.212:8000/v1/chat/completions`.
+  `http://192.168.210.221:8000/v1/chat/completions`.
 - API key của Public LLM nếu sử dụng chức năng chat.
 
 ## Cài đặt
@@ -251,7 +252,7 @@ mapping để placeholder được khôi phục ổn định giữa nhiều lư�
 ### Gửi file trong chat
 
 Nhấn **Đính kèm file** bên dưới ô nhập tin nhắn rồi chọn một trong các định dạng:
-`TXT`, `MD`, `CSV`, `JSON`, `XML`, `YAML`, `LOG`, `PDF` hoặc `DOCX`. Có thể nhập câu
+`TXT`, `MD`, `CSV`, `JSON`, `XML`, `YAML`, `LOG`, `PDF`, `DOCX`, `XLSX` hoặc `XLS`. Có thể nhập câu
 hỏi kèm theo hoặc chỉ gửi file để yêu cầu AI phân tích nội dung.
 
 Luồng xử lý file:
@@ -266,7 +267,20 @@ xuất để cuộc trò chuyện tiếp tục có ngữ cảnh; API key không 
 tối đa 10 MB và nội dung trích xuất tối đa 200.000 ký tự. Nội dung dài được chia
 thành các đoạn 12.000 ký tự để local LLM phát hiện entity tuần tự trước khi gộp và
 mask toàn bộ tài liệu. Các ô gộp trong bảng Word chỉ được đọc một lần để tránh lặp
-nội dung. PDF scan không có lớp text chưa được hỗ trợ OCR.
+nội dung. Với Excel, nội dung được đọc lần lượt theo từng sheet và từng hàng; công
+thức chỉ được đọc như văn bản hoặc giá trị có sẵn, không được thực thi. Để tránh
+file lỗi khai báo vùng dữ liệu tới hàng/cột tối đa làm treo tiến trình, ứng dụng
+bỏ qua kích thước ảo và chỉ đọc tối đa 512 cột thực tế mỗi sheet. PDF scan không
+có lớp text chưa được hỗ trợ OCR.
+
+### Xuất câu trả lời thành file
+
+Dưới mỗi câu trả lời AI, nhấn **Xuất file** rồi chọn **Word**, **Excel** hoặc
+**PDF**. File được tạo trong bộ nhớ và gửi thẳng về trình duyệt; backend không lưu
+bản sao của file xuất. Tên hội thoại được dùng làm tên và tiêu đề tài liệu. File
+Excel có sheet **Tổng hợp** và thêm sheet **Nguồn** khi câu trả lời dùng tài liệu
+Project. Nội dung bắt đầu bằng ký tự công thức được ép thành văn bản để tránh chạy
+công thức ngoài ý muốn khi mở bằng Excel.
 
 ### Project và bộ nhớ liên hội thoại
 
@@ -287,6 +301,7 @@ không dùng bộ nhớ chung.
 | OpenAI-compatible | `https://api.openai.com/v1/chat/completions` | Nhập model được nhà cung cấp hỗ trợ |
 | Anthropic | `https://api.anthropic.com/v1/messages` | Nhập model được tài khoản hỗ trợ |
 | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/models` | `gemini-3.6-flash` |
+| xAI Grok | `https://api.x.ai/v1/chat/completions` | `grok-4.6` |
 
 Với các dịch vụ tương thích OpenAI như OpenRouter, Groq hoặc Together, thay API
 URL và model bằng thông tin do dịch vụ đó cung cấp.
@@ -355,7 +370,7 @@ curl -X POST http://127.0.0.1:8080/unmask \
 ### `POST /chat`
 
 Thực hiện pipeline mask → Public LLM → unmask. Các giá trị `provider` được hỗ
-trợ là `openai_compatible`, `anthropic` và `gemini`.
+trợ là `openai_compatible`, `anthropic`, `gemini` và `xai`.
 
 ```json
 {
@@ -402,7 +417,7 @@ dạng OpenAI-compatible. Nếu chưa cấu hình, endpoint trả về `501`.
 ## Cấu hình `.env`
 
 ```dotenv
-LOCAL_LLM_URL=http://192.168.210.212:8000/v1/chat/completions
+LOCAL_LLM_URL=http://192.168.210.221:8000/v1/chat/completions
 LOCAL_LLM_MODEL=Qwen/Qwen2.5-3B-Instruct
 
 PUBLIC_LLM_URL=
@@ -439,7 +454,7 @@ môi trường Python, cache và log runtime.
 
 ### Không gọi được local LLM
 
-- Kiểm tra máy `192.168.210.212` có thể truy cập từ máy chạy ứng dụng.
+- Kiểm tra máy `192.168.210.221` có thể truy cập từ máy chạy ứng dụng.
 - Kiểm tra port `8000`, URL và tên model trong `.env`.
 
 ### Gemini trả lỗi `503 high demand`
@@ -475,6 +490,7 @@ app/
 │   ├── __init__.py
 │   ├── auth.py         # Argon2 và token phiên đăng nhập
 │   ├── config.py       # Đọc cấu hình môi trường
+│   ├── export_files.py # Tạo DOCX, XLSX và PDF trong bộ nhớ
 │   ├── file_reader.py  # Trích xuất text cục bộ từ file upload
 │   ├── main.py         # FastAPI endpoints
 │   ├── masking.py      # Detect, mask, unmask và session mapping

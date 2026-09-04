@@ -252,6 +252,53 @@
     }
     .bubble-source { background: transparent; }
 
+    .bubble-export {
+      position: relative;
+      width: fit-content;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: normal;
+    }
+    .bubble-export > summary {
+      width: fit-content;
+      padding: 5px 8px;
+      border-radius: 8px;
+      font-weight: 700;
+      list-style: none;
+      cursor: pointer;
+      user-select: none;
+    }
+    .bubble-export > summary::-webkit-details-marker { display: none; }
+    .bubble-export > summary:hover,
+    .bubble-export[open] > summary { background: var(--soft); color: var(--ink); }
+    .bubble-export-menu {
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 0;
+      z-index: 12;
+      display: grid;
+      min-width: 150px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .16);
+    }
+    .bubble-export-menu button {
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 650;
+      text-align: left;
+      cursor: pointer;
+    }
+    .bubble-export-menu button:hover:not(:disabled) { background: var(--soft); }
+    .bubble-export-menu button:disabled { cursor: wait; opacity: .55; }
+
     .chat-compose {
       position: sticky;
       bottom: 0;

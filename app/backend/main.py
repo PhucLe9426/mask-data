@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.backend import auth, file_reader, masking, public_llm, storage
+from app.backend import auth, export_files, file_reader, masking, public_llm, storage
 from app.backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -177,7 +177,7 @@ class ChatResponse(BaseModel):
 
 
 class ModelListRequest(BaseModel):
-    provider: Literal["openai_compatible", "anthropic", "gemini"]
+    provider: Literal["openai_compatible", "anthropic", "gemini", "xai"]
     api_url: HttpUrl
     api_key: str = Field(min_length=1)
 
@@ -189,6 +189,18 @@ class AvailableModel(BaseModel):
 
 class ModelListResponse(BaseModel):
     models: list[AvailableModel]
+
+
+class ExportSource(BaseModel):
+    name: str = Field(default="Tài liệu", max_length=255)
+    excerpt: str = Field(default="", max_length=12_000)
+
+
+class ExportPayload(BaseModel):
+    format: Literal["docx", "xlsx", "pdf"]
+    title: str = Field(default="Tổng hợp AI", min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=300_000)
+    sources: list[ExportSource] = Field(default_factory=list, max_length=100)
 
 
 class ProjectPayload(BaseModel):
@@ -373,6 +385,34 @@ async def list_llm_models(req: ModelListRequest):
             detail="Không tìm thấy model chat phù hợp. Bạn vẫn có thể nhập model thủ công.",
         )
     return {"models": models}
+
+
+@app.post("/exports")
+async def export_assistant_response(req: ExportPayload):
+    """Build an export in memory; no generated document is persisted by the server."""
+    try:
+        data, media_type, filename = await asyncio.to_thread(
+            export_files.build_export,
+            req.format,
+            req.title,
+            req.content,
+            [source.model_dump() for source in req.sources],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Không thể tạo file %s", req.format)
+        raise HTTPException(status_code=500, detail="Không thể tạo file tải xuống") from exc
+
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @app.get("/projects")
@@ -677,7 +717,7 @@ async def chat_stream_endpoint(req: ChatRequest, request: Request):
 @app.post("/chat/file", response_model=ChatResponse)
 async def chat_file_endpoint(
     http_request: Request,
-    file: Annotated[UploadFile, File(description="TXT, MD, CSV, JSON, PDF hoặc DOCX")],
+    file: Annotated[UploadFile, File(description="TXT, MD, CSV, JSON, PDF, DOCX, XLSX hoặc XLS")],
     api_url: Annotated[HttpUrl, Form()],
     api_key: Annotated[str, Form()],
     model: Annotated[str, Form()],
@@ -690,7 +730,8 @@ async def chat_file_endpoint(
     """Extract an upload locally, mask its text, then send only masked content outward."""
     try:
         content = await file.read(settings.MAX_UPLOAD_BYTES + 1)
-        attachment_name, attachment_text = file_reader.extract_text(
+        attachment_name, attachment_text = await asyncio.to_thread(
+            file_reader.extract_text,
             file.filename,
             content,
             max_bytes=settings.MAX_UPLOAD_BYTES,
@@ -723,7 +764,7 @@ async def chat_file_endpoint(
 @app.post("/chat/file/stream")
 async def chat_file_stream_endpoint(
     http_request: Request,
-    file: Annotated[UploadFile, File(description="TXT, MD, CSV, JSON, PDF hoặc DOCX")],
+    file: Annotated[UploadFile, File(description="TXT, MD, CSV, JSON, PDF, DOCX, XLSX hoặc XLS")],
     api_url: Annotated[HttpUrl, Form()],
     api_key: Annotated[str, Form()],
     model: Annotated[str, Form()],
@@ -743,7 +784,8 @@ async def chat_file_stream_endpoint(
     async def run(report: ProgressReporter) -> dict:
         await report("extract", 4, "Đang đọc và trích xuất nội dung file...")
         try:
-            attachment_name, attachment_text = file_reader.extract_text(
+            attachment_name, attachment_text = await asyncio.to_thread(
+                file_reader.extract_text,
                 original_filename,
                 content,
                 max_bytes=settings.MAX_UPLOAD_BYTES,
@@ -794,7 +836,7 @@ async def _run_chat(
         raise HTTPException(status_code=400, detail="text không được để trống")
     if not req.api_key.strip() or not req.model.strip():
         raise HTTPException(status_code=400, detail="API key và model không được để trống")
-    if req.provider not in {"openai_compatible", "anthropic", "gemini"}:
+    if req.provider not in {"openai_compatible", "anthropic", "gemini", "xai"}:
         raise HTTPException(status_code=400, detail="Nhà cung cấp không được hỗ trợ")
 
     await require_database()

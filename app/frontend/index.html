@@ -15,7 +15,7 @@
   </script>
   <link rel="stylesheet" href="/static/css/base.css?v=20260827-5">
   <link rel="stylesheet" href="/static/css/layout.css?v=20260827-2">
-  <link rel="stylesheet" href="/static/css/chat-theme.css?v=20260827-4">
+  <link rel="stylesheet" href="/static/css/chat-theme.css?v=20260904-1">
   <link rel="stylesheet" href="/static/css/auth.css?v=20260827-2">
 </head>
 
@@ -189,9 +189,9 @@
               <textarea id="chat-input"
                 placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
               <div class="file-controls">
-                <input id="file-input" type="file" hidden accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.docx">
+                <input id="file-input" type="file" hidden accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.docx,.xlsx,.xls">
                 <button id="attach-file" class="attach-button" type="button">📎 Đính kèm file</button>
-                <span id="selected-file" class="selected-file">TXT, MD, CSV, JSON, PDF, DOCX · tối đa 10 MB</span>
+                <span id="selected-file" class="selected-file">TXT, CSV, PDF, DOCX, XLSX, XLS · tối đa 10 MB</span>
                 <button id="remove-file" class="file-remove" type="button" aria-label="Bỏ file">×</button>
               </div>
             </div>
@@ -239,6 +239,7 @@
             <option value="openai_compatible">OpenAI-compatible</option>
             <option value="anthropic">Anthropic</option>
             <option value="gemini">Google Gemini</option>
+            <option value="xai">xAI Grok</option>
           </select>
         </div>
         <div class="settings-model">
@@ -294,7 +295,7 @@
         <div class="project-documents-box">
           <div class="project-document-controls">
             <span id="project-document-note" class="dialog-note">Lưu Project trước khi thêm tài liệu.</span>
-            <input id="project-document-input" type="file" hidden accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.docx">
+            <input id="project-document-input" type="file" hidden accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.pdf,.docx,.xlsx,.xls">
             <button id="upload-project-document" class="project-document-upload" type="button" disabled>+ Thêm tài liệu</button>
           </div>
           <div id="project-document-list" class="project-document-list"></div>
@@ -351,10 +352,10 @@
   <script src="/static/js/state.js?v=20260827-2"></script>
   <script src="/static/js/api.js?v=20260827-2"></script>
   <script src="/static/js/auth.js?v=20260827-2"></script>
-  <script src="/static/js/settings.js?v=20260827-4"></script>
-  <script src="/static/js/projects.js?v=20260827-2"></script>
+  <script src="/static/js/settings.js?v=20260904-1"></script>
+  <script src="/static/js/projects.js?v=20260904-1"></script>
   <script src="/static/js/conversations.js?v=20260827-2"></script>
-  <script src="/static/js/chat.js?v=20260827-2"></script>
+  <script src="/static/js/chat.js?v=20260904-2"></script>
   <script src="/static/js/app.js?v=20260827-2"></script>
 </body>
 

@@ -13,6 +13,10 @@ const providerDefaults = {
     apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
     model: 'gemini-3.6-flash',
   },
+  xai: {
+    apiUrl: 'https://api.x.ai/v1/chat/completions',
+    model: 'grok-4.6',
+  },
 };
 
 function providerDisplayName() {

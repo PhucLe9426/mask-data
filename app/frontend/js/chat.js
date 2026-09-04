@@ -1,4 +1,68 @@
-function addBubble(role, content, attachmentName = null, sources = []) {
+function exportTitle() {
+      return document.querySelector('.conversation-item.active .conversation-title')?.textContent?.trim()
+        || 'Tổng hợp AI';
+    }
+
+    async function downloadAssistantExport(format, content, sources, trigger) {
+      const buttons = trigger.closest('.bubble-export-menu').querySelectorAll('button');
+      buttons.forEach((button) => { button.disabled = true; });
+      trigger.textContent = 'Đang tạo...';
+      try {
+        const response = await fetch('/exports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ format, title: exportTitle(), content, sources }),
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.detail || `Lỗi HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || `tong-hop-ai.${format}`;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        trigger.closest('details').open = false;
+        message('chat-message', `Đã tạo file ${format.toUpperCase()}.`, 'success');
+      } catch (error) {
+        await showAppAlert(error.message, 'Không thể xuất file');
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
+        trigger.textContent = trigger.dataset.label;
+      }
+    }
+
+    function createExportMenu(content, sources) {
+      const details = document.createElement('details');
+      details.className = 'bubble-export';
+      const summary = document.createElement('summary');
+      summary.textContent = '↓ Xuất file';
+      summary.title = 'Tải câu trả lời này xuống';
+      const menu = document.createElement('div');
+      menu.className = 'bubble-export-menu';
+      [
+        ['docx', 'Word (.docx)'],
+        ['xlsx', 'Excel (.xlsx)'],
+        ['pdf', 'PDF (.pdf)'],
+      ].forEach(([format, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.label = label;
+        button.textContent = label;
+        button.addEventListener('click', () => downloadAssistantExport(format, content, sources, button));
+        menu.appendChild(button);
+      });
+      details.append(summary, menu);
+      return details;
+    }
+
+function addBubble(role, content, attachmentName = null, sources = [], exportable = true) {
       $('chat-empty')?.remove();
       const bubble = document.createElement('div');
       bubble.className = `bubble ${role}`;
@@ -30,6 +94,9 @@ function addBubble(role, content, attachmentName = null, sources = []) {
         });
         bubble.appendChild(sourceBox);
       }
+      if (role === 'assistant' && exportable) {
+        bubble.appendChild(createExportMenu(content, sources));
+      }
       $('chat-box').appendChild(bubble);
       $('chat-box').scrollTop = $('chat-box').scrollHeight;
     }
@@ -37,7 +104,7 @@ function addBubble(role, content, attachmentName = null, sources = []) {
     function clearAttachment() {
       selectedFile = null;
       $('file-input').value = '';
-      $('selected-file').textContent = 'TXT, MD, CSV, JSON, PDF, DOCX · tối đa 10 MB';
+      $('selected-file').textContent = 'TXT, CSV, PDF, DOCX, XLSX, XLS · tối đa 10 MB';
       $('remove-file').style.display = 'none';
     }
 
@@ -134,7 +201,7 @@ function addBubble(role, content, attachmentName = null, sources = []) {
         if (error.name === 'AbortError') {
           message('chat-message', 'Đã hủy yêu cầu. Hội thoại dở dang không được lưu.', 'success');
         } else {
-          addBubble('assistant', `Không thể trả lời: ${error.message}`);
+          addBubble('assistant', `Không thể trả lời: ${error.message}`, null, [], false);
           message('chat-message', error.message, 'error');
         }
       } finally {

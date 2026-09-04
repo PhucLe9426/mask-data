@@ -104,6 +104,26 @@ class PublicLLMModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.calls[0]["url"], "https://example.com/v1/models")
         self.assertEqual(client.calls[0]["headers"]["Authorization"], "Bearer temporary-key")
 
+    async def test_xai_grok_uses_models_endpoint_and_bearer_key(self):
+        client = FakeClient(FakeResponse({"data": [
+            {"id": "grok-4.6", "owned_by": "xai"},
+            {"id": "grok-code-fast", "owned_by": "xai"},
+        ]}))
+
+        with patch.object(public_llm.httpx, "AsyncClient", return_value=client):
+            models = await public_llm.list_public_models(
+                provider="xai",
+                api_url="https://api.x.ai/v1/chat/completions",
+                api_key="xai-temporary-key",
+            )
+
+        self.assertEqual([item["id"] for item in models], ["grok-4.6", "grok-code-fast"])
+        self.assertEqual(client.calls[0]["url"], "https://api.x.ai/v1/models")
+        self.assertEqual(
+            client.calls[0]["headers"]["Authorization"],
+            "Bearer xai-temporary-key",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

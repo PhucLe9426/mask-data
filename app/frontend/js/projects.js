@@ -132,7 +132,7 @@ function currentProject() {
       $('delete-project').hidden = !project;
       $('upload-project-document').disabled = !project;
       $('project-document-note').textContent = project
-        ? 'TXT, PDF, DOCX và các định dạng văn bản · tối đa 10 MB'
+        ? 'TXT, PDF, DOCX, XLSX, XLS và các định dạng văn bản · tối đa 10 MB'
         : 'Lưu Project trước khi thêm tài liệu.';
       $('project-document-input').value = '';
       $('project-dialog').showModal();

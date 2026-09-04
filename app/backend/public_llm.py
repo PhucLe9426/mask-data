@@ -1,5 +1,5 @@
 """
-Module gọi Public LLM (OpenAI / Anthropic / khác).
+Module gọi Public LLM (OpenAI-compatible / Anthropic / Gemini / xAI Grok).
 
 Bạn CHƯA chọn Public LLM cụ thể, nên file này để dạng khung sẵn.
 Khi quyết định dùng nhà cung cấp nào, mở comment phần tương ứng bên dưới

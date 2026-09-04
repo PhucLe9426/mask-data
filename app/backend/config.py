@@ -7,7 +7,7 @@ load_dotenv()
 
 class Settings:
     # Local LLM (vLLM chạy trên VM 111) — dùng để detect entity nhạy cảm
-    LOCAL_LLM_URL: str = os.getenv("LOCAL_LLM_URL", "http://192.168.210.212:8000/v1/chat/completions")
+    LOCAL_LLM_URL: str = os.getenv("LOCAL_LLM_URL", "http://192.168.210.221:8000/v1/chat/completions")
     LOCAL_LLM_MODEL: str = os.getenv("LOCAL_LLM_MODEL", "Qwen/Qwen2.5-3B-Instruct")
 
     # Public LLM — để trống, cắm vào sau khi bạn chọn (OpenAI / Anthropic / khác)
